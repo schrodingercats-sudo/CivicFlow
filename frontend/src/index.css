@@ -436,3 +436,24 @@ body {
     padding: 1.15rem !important;
   }
 }
+
+/* Responsive Leaflet Map Popups */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.25) !important;
+  padding: 4px !important;
+  max-width: 270px !important;
+}
+
+.leaflet-popup-content {
+  margin: 10px 12px !important;
+  line-height: 1.4 !important;
+  width: auto !important;
+  max-width: 240px !important;
+  word-break: break-word !important;
+  white-space: normal !important;
+}
+
+.leaflet-popup-tip {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15) !important;
+}

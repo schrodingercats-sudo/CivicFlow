@@ -42,7 +42,7 @@ export const ComplaintMap = ({
       mapInstanceRef.current = null;
     }
 
-    // Initialize Leaflet map with zoom & drag enabled for smooth usability on mobile, laptop, and PC
+    // Initialize Leaflet map with zoom, drag, and auto-pan enabled
     const map = L.map(mapContainerRef.current, {
       center: [initialLat, initialLng],
       zoom: zoom,
@@ -95,12 +95,16 @@ export const ComplaintMap = ({
           const marker = L.marker([mLat, mLng], { icon: customIcon }).addTo(map);
           bounds.extend([mLat, mLng]);
           marker.bindPopup(`
-            <div style="font-family: inherit; font-size: 0.85rem; padding: 4px;">
-              <strong style="color: #0f172a; font-size: 0.95rem;">${m.title || 'Complaint Location'}</strong>
-              <div style="color: #64748b; font-size: 0.75rem; margin: 4px 0;">${m.address || 'Reported Location'}</div>
-              <a href="/complaint/${m.id}" style="display: inline-block; background: #0f172a; color: #fff; text-decoration: none; padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; margin-top: 4px;">View Issue</a>
+            <div style="font-family: inherit; font-size: 0.85rem; padding: 2px; max-width: 240px; word-break: break-word;">
+              <strong style="color: #0f172a; font-size: 0.9rem; display: block; margin-bottom: 4px; line-height: 1.3;">${m.title || 'Complaint Location'}</strong>
+              <div style="color: #64748b; font-size: 0.75rem; margin-bottom: 6px; line-height: 1.3;">${m.address || 'Reported Location'}</div>
+              <a href="/complaint/${m.id}" style="display: inline-block; background: #0f172a; color: #fff; text-decoration: none; padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">View Issue Details ↗</a>
             </div>
-          `);
+          `, {
+            autoPan: true,
+            autoPanPadding: [35, 35],
+            maxWidth: 270
+          });
         }
       });
       if (bounds.isValid()) {
@@ -112,15 +116,19 @@ export const ComplaintMap = ({
       const googleMapsUrl = `https://www.google.com/maps?q=${initialLat},${initialLng}`;
 
       marker.bindPopup(`
-        <div style="font-family: inherit; font-size: 0.85rem; padding: 4px; min-width: 190px;">
-          <div style="font-weight: 800; color: #0f172a; font-size: 0.95rem; margin-bottom: 2px;">${title || 'Exact Incident Spot'}</div>
-          <div style="color: #475569; font-size: 0.78rem; margin-bottom: 6px;">${address || 'Citizen Geo-tagged GPS'}</div>
+        <div style="font-family: inherit; font-size: 0.85rem; padding: 2px; max-width: 240px; word-break: break-word;">
+          <div style="font-weight: 800; color: #0f172a; font-size: 0.9rem; line-height: 1.35; margin-bottom: 4px;">${title || 'Exact Incident Spot'}</div>
+          <div style="color: #475569; font-size: 0.78rem; line-height: 1.3; margin-bottom: 6px;">${address || 'Citizen Geo-tagged GPS'}</div>
           <div style="font-size: 0.72rem; color: #64748b; margin-bottom: 8px;">GPS: ${initialLat.toFixed(6)}, ${initialLng.toFixed(6)}</div>
           <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 4px; background: #2563eb; color: #ffffff; text-decoration: none; padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 700;">
             Open in Google Maps ↗
           </a>
         </div>
-      `).openPopup();
+      `, {
+        autoPan: true,
+        autoPanPadding: [35, 35],
+        maxWidth: 270
+      }).openPopup();
     }
 
     setTimeout(() => {
