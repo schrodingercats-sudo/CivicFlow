@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { complaintService } from '../services/complaint.service';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
-import { Shield, Building2, BarChart2, Edit, RefreshCw, Eye, Trash2 } from 'lucide-react';
+import { ComplaintMap } from '../components/common/ComplaintMap';
+import { Shield, Building2, BarChart2, Edit, RefreshCw, Eye, Trash2, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const AdminDashboard = () => {
@@ -167,6 +168,20 @@ export const AdminDashboard = () => {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Live City GIS Map */}
+      <div className="clay-card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <MapPin size={18} color="#2563eb" /> Live City Infrastructure GIS Map
+        </h3>
+        <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1rem' }}>
+          Real-time spatial distribution of citizen-reported civic complaints across municipal sectors
+        </p>
+        <ComplaintMap
+          markers={complaints}
+          height="360px"
+        />
       </div>
 
       {/* Complaints Table */}

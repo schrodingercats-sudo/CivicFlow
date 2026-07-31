@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { ComplaintImage } from '../components/common/ComplaintImage';
+import { ComplaintMap } from '../components/common/ComplaintMap';
 import { Briefcase, CheckCircle2, MapPin, Eye, Edit3, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -123,6 +124,22 @@ export const OfficerDashboard = () => {
           </button>
         ))}
       </div>
+
+      {/* Department Live Location GIS Map */}
+      {!loading && complaints.length > 0 && (
+        <div className="clay-card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <MapPin size={18} color="#2563eb" /> Assigned Department Live GIS Map
+          </h3>
+          <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1rem' }}>
+            Live GPS pin locations of assigned infrastructure issues requiring field dispatch
+          </p>
+          <ComplaintMap
+            markers={complaints}
+            height="320px"
+          />
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Loading assigned complaints...</div>

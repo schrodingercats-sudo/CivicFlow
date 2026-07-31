@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { ComplaintImage } from '../components/common/ComplaintImage';
+import { ComplaintMap } from '../components/common/ComplaintMap';
 import { ArrowLeft, MapPin, Calendar, Building2, User, Star, Clock, Sparkles, XCircle } from 'lucide-react';
 
 export const ComplaintDetailPage = () => {
@@ -267,6 +268,17 @@ export const ComplaintDetailPage = () => {
                       ({complaint.latitude}, {complaint.longitude})
                     </div>
                   </div>
+                </div>
+                {/* Live Leaflet Location Map */}
+                <div style={{ marginTop: '0.85rem' }}>
+                  <ComplaintMap
+                    latitude={complaint.latitude}
+                    longitude={complaint.longitude}
+                    address={complaint.address}
+                    title={complaint.title}
+                    category={complaint.category}
+                    height="220px"
+                  />
                 </div>
               </div>
 
