@@ -133,6 +133,24 @@ export const ComplaintDetailPage = () => {
             )}
           </div>
 
+          {/* Full-Width Live Geo-Tagged GPS Location Map */}
+          <div className="clay-card" style={{ padding: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <MapPin size={20} color="#2563eb" /> Live Geo-Tagged GPS Location Map
+            </h3>
+            <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1rem' }}>
+              Exact reported spot: <strong>{complaint.address}</strong> ({complaint.latitude}, {complaint.longitude})
+            </p>
+            <ComplaintMap
+              latitude={complaint.latitude}
+              longitude={complaint.longitude}
+              address={complaint.address}
+              title={complaint.title}
+              category={complaint.category}
+              height="380px"
+            />
+          </div>
+
           <div className="clay-card" style={{ padding: '2rem' }}>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Clock size={20} color="#0f172a" /> Resolution Progress Timeline
@@ -268,17 +286,6 @@ export const ComplaintDetailPage = () => {
                       ({complaint.latitude}, {complaint.longitude})
                     </div>
                   </div>
-                </div>
-                {/* Live Leaflet Location Map */}
-                <div style={{ marginTop: '0.85rem' }}>
-                  <ComplaintMap
-                    latitude={complaint.latitude}
-                    longitude={complaint.longitude}
-                    address={complaint.address}
-                    title={complaint.title}
-                    category={complaint.category}
-                    height="220px"
-                  />
                 </div>
               </div>
 

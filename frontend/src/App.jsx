@@ -10,7 +10,6 @@ import { SubmitComplaintPage } from './pages/SubmitComplaintPage';
 import { ComplaintDetailPage } from './pages/ComplaintDetailPage';
 import { OfficerDashboard } from './pages/OfficerDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
-import { Agentation } from 'agentation';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
@@ -103,8 +102,6 @@ export default function App() {
               />
             </Routes>
           </main>
-          {/* Agentation Visual Feedback Tool */}
-          <Agentation />
         </div>
       </BrowserRouter>
     </AuthProvider>
