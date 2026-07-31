@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { NotificationBell } from './NotificationBell';
-import { Shield, LogOut, FileText, LayoutDashboard, PlusCircle } from 'lucide-react';
+import { Shield, LogOut, FileText, LayoutDashboard, PlusCircle, User } from 'lucide-react';
 
 export const Navbar = () => {
   const { user, logout } = useAuth();
@@ -70,12 +70,17 @@ export const Navbar = () => {
           <div className="nav-divider" style={{ width: '1px', height: '20px', background: '#cbd5e1' }} />
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div className="nav-user-text" style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>{user.name}</div>
-              <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'capitalize' }}>
-                {user.role} {user.cf_departments ? `(${user.cf_departments.code})` : ''}
+            <Link to="/profile" title="View Profile" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800 }}>
+                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
               </div>
-            </div>
+              <div className="nav-user-text" style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>{user.name}</div>
+                <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'capitalize' }}>
+                  {user.role} {user.cf_departments ? `(${user.cf_departments.code})` : ''}
+                </div>
+              </div>
+            </Link>
             <button
               onClick={handleLogout}
               className="btn btn-secondary"

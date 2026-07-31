@@ -27,6 +27,13 @@ export const authService = {
     return await apiRequest('/auth/me');
   },
 
+  updateProfile: async (data) => {
+    return await apiRequest('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
   logout: () => {
     localStorage.removeItem('civicflow_token');
   }

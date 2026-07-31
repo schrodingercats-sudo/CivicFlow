@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { complaintService } from '../services/complaint.service';
+import { ComplaintMap } from '../components/common/ComplaintMap';
 import { Send, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
 const SAMPLE_PHOTOS = [
@@ -67,6 +68,11 @@ export const SubmitComplaintPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Automatically prompt and fetch live GPS location on page mount
+    handleAutoLocate();
+  }, []);
 
   const handleAutoLocate = () => {
     if (!navigator.geolocation) {
@@ -279,14 +285,27 @@ export const SubmitComplaintPage = () => {
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Longitude</label>
                 <input
-                  type="number"
-                  step="any"
+                  type="text"
                   className="form-input"
                   value={formData.longitude}
                   onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
                   required
                 />
               </div>
+            </div>
+
+            {/* Live Interactive Leaflet Map Preview */}
+            <div style={{ marginTop: '1.25rem' }}>
+              <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 700, marginBottom: '0.5rem' }}>
+                Live GPS Pin Preview
+              </div>
+              <ComplaintMap
+                latitude={formData.latitude}
+                longitude={formData.longitude}
+                address={formData.address}
+                title={formData.title || 'Selected Incident Location'}
+                height="260px"
+              />
             </div>
           </div>
 

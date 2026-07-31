@@ -98,3 +98,30 @@ export const getMe = async (req, res, next) => {
     next(error);
   }
 };
+
+export const updateProfile = async (req, res, next) => {
+  try {
+    const { name, phone } = req.body;
+
+    const updates = {};
+    if (name) updates.name = name;
+    if (phone !== undefined) updates.phone = phone;
+
+    const { data: updatedUser, error } = await supabase
+      .from('cf_users')
+      .update(updates)
+      .eq('id', req.user.id)
+      .select('*, cf_departments(name, code)')
+      .single();
+
+    if (error || !updatedUser) {
+      throw new ApiError(500, `Failed to update profile: ${error?.message || 'Database error'}`);
+    }
+
+    return res.status(200).json(
+      new ApiResponse(200, { user: updatedUser }, 'Profile updated successfully')
+    );
+  } catch (error) {
+    next(error);
+  }
+};

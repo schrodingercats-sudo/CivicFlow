@@ -290,10 +290,20 @@ export const ComplaintDetailPage = () => {
               </div>
 
               <div>
-                <div style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 600 }}>Reported By</div>
-                <div style={{ color: '#0f172a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.15rem' }}>
-                  <User size={16} /> {complaint.citizen?.name}
+                <div style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 600 }}>Reported Citizen Contact</div>
+                <div style={{ color: '#0f172a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.15rem' }}>
+                  <User size={16} /> {complaint.citizen?.name || 'Citizen'}
                 </div>
+                {complaint.citizen?.email && (
+                  <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '0.25rem' }}>
+                    ✉️ <a href={`mailto:${complaint.citizen.email}`} style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 600 }}>{complaint.citizen.email}</a>
+                  </div>
+                )}
+                {complaint.citizen?.phone && (
+                  <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '0.15rem' }}>
+                    📞 <a href={`tel:${complaint.citizen.phone}`} style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 600 }}>{complaint.citizen.phone}</a>
+                  </div>
+                )}
               </div>
 
               <div>

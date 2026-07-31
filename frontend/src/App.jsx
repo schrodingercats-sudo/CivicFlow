@@ -10,6 +10,7 @@ import { SubmitComplaintPage } from './pages/SubmitComplaintPage';
 import { ComplaintDetailPage } from './pages/ComplaintDetailPage';
 import { OfficerDashboard } from './pages/OfficerDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { ProfilePage } from './pages/ProfilePage';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
@@ -77,6 +78,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <ComplaintDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <ProfilePage />
                   </ProtectedRoute>
                 }
               />
