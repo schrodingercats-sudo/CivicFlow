@@ -183,11 +183,11 @@ export const getComplaintById = async (req, res, next) => {
 export const updateComplaintStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, remarks, proof_image_url, assigned_officer_id, department_id } = req.body;
+    let { status, remarks, proof_image_url, assigned_officer_id, department_id } = req.body;
 
     const { data: existingComplaint, error: fetchErr } = await supabase
       .from('cf_complaints')
-      .select('id, title, status, citizen_id, department_id')
+      .select('id, title, status, citizen_id, department_id, assigned_officer_id')
       .eq('id', id)
       .single();
 
@@ -196,9 +196,25 @@ export const updateComplaintStatus = async (req, res, next) => {
     }
 
     const updates = {};
+    
+    // Check if department is being reassigned
+    const isDeptChanged = department_id && department_id !== existingComplaint.department_id;
+    if (isDeptChanged) {
+      updates.department_id = department_id;
+      updates.assigned_officer_id = null; // Unassign previous officer on dept transfer
+      
+      // Automatically reactivate rejected or withdrawn complaints to 'submitted' when reassigned
+      if (existingComplaint.status === 'rejected' || existingComplaint.status === 'withdrawn') {
+        status = 'submitted';
+      }
+    } else if (department_id !== undefined) {
+      updates.department_id = department_id;
+    }
+
     if (status) updates.status = status;
-    if (assigned_officer_id !== undefined) updates.assigned_officer_id = assigned_officer_id;
-    if (department_id !== undefined) updates.department_id = department_id;
+    if (assigned_officer_id !== undefined && !isDeptChanged) {
+      updates.assigned_officer_id = assigned_officer_id;
+    }
 
     const { data: updatedComplaint, error: updateErr } = await supabase
       .from('cf_complaints')
@@ -211,36 +227,45 @@ export const updateComplaintStatus = async (req, res, next) => {
       throw new ApiError(500, `Failed to update complaint: ${updateErr.message}`);
     }
 
-    if (status && status !== existingComplaint.status) {
-      // 1. Audit log
+    const newStatus = updates.status || existingComplaint.status;
+
+    // Log audit entry & send real-time notifications for status change OR department reassignment
+    if (status || isDeptChanged) {
       await supabase.from('cf_complaint_updates').insert([
         {
           complaint_id: id,
           updated_by: req.user.id,
           old_status: existingComplaint.status,
-          new_status: status,
-          remarks: remarks || `Status updated to ${status}`,
+          new_status: newStatus,
+          remarks: remarks || (isDeptChanged ? `Reassigned to department: ${updatedComplaint.cf_departments?.name || department_id}` : `Status updated to ${newStatus}`),
           proof_image_url: proof_image_url || null
         }
       ]);
 
-      // Automated notifications (DB records + ntfy SSE push)
+      // Automated notifications
       await notifyCitizenSystem(
         existingComplaint.citizen_id,
-        `Status Update: ${status.replaceAll('_', ' ').toUpperCase()}`,
-        `Your complaint "${existingComplaint.title}" status was updated to ${status.replaceAll('_', ' ')}.`,
+        isDeptChanged ? 'Complaint Reassigned' : `Status Update: ${newStatus.replaceAll('_', ' ').toUpperCase()}`,
+        isDeptChanged 
+          ? `Your complaint "${existingComplaint.title}" was reassigned to ${updatedComplaint.cf_departments?.name || 'a new department'}.`
+          : `Your complaint "${existingComplaint.title}" status was updated to ${newStatus.replaceAll('_', ' ')}.`,
         `/complaint/${id}`
       );
+
       await notifyAdminsSystem(
-        'Complaint Status Changed',
-        `"${existingComplaint.title}" changed to ${status.replaceAll('_', ' ')}.`,
+        isDeptChanged ? 'Complaint Reassigned' : 'Complaint Status Changed',
+        isDeptChanged 
+          ? `"${existingComplaint.title}" reassigned to ${updatedComplaint.cf_departments?.name || department_id}.`
+          : `"${existingComplaint.title}" status changed to ${newStatus.replaceAll('_', ' ')}.`,
         `/complaint/${id}`
       );
-      if (existingComplaint.department_id) {
+
+      const targetDeptId = updates.department_id || existingComplaint.department_id;
+      if (targetDeptId) {
         await notifyOfficersSystem(
-          existingComplaint.department_id,
-          'Complaint Status Changed',
-          `"${existingComplaint.title}" status updated to ${status.replaceAll('_', ' ')}.`,
+          targetDeptId,
+          isDeptChanged ? 'New Complaint Reassigned To Dept' : 'Complaint Status Changed',
+          `"${existingComplaint.title}" is assigned to your department queue.`,
           `/complaint/${id}`
         );
       }
