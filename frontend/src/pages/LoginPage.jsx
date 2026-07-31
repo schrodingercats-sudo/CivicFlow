@@ -71,7 +71,7 @@ export const LoginPage = () => {
             <input
               type="email"
               className="form-input"
-              placeholder="e.g. aarav.citizen@civicflow.org"
+              placeholder="e.g. pratham.citizen@civicflow.org"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -95,11 +95,11 @@ export const LoginPage = () => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             <button
-              onClick={() => handleLogin('aarav.citizen@civicflow.org')}
+              onClick={() => handleLogin('pratham.citizen@civicflow.org')}
               className="btn btn-secondary"
               style={{ width: '100%', justifyContent: 'flex-start', fontSize: '0.85rem' }}
             >
-              <UserCheck size={16} color="#0f172a" /> Citizen Demo (Aarav Patel)
+              <UserCheck size={16} color="#0f172a" /> Citizen Demo (Pratham Solanki)
             </button>
             <button
               onClick={() => handleLogin('officer.roads@civicflow.org')}

@@ -21,7 +21,7 @@ INSERT INTO public.cf_users (id, name, email, phone, role, department_id) VALUES
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO public.cf_users (id, name, email, phone, role) VALUES
-('33333333-3333-3333-3333-333333333333', 'Aarav Patel', 'aarav.citizen@civicflow.org', '+1999000003', 'citizen')
+('33333333-3333-3333-3333-333333333333', 'Pratham Solanki', 'pratham.citizen@civicflow.org', '+1999000003', 'citizen')
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO public.cf_complaints (
