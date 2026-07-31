@@ -1,0 +1,25 @@
+{
+  "name": "civicflow-backend",
+  "version": "1.0.0",
+  "description": "CivicFlow - AI Powered Smart Complaint Management System API",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "keywords": ["civicflow", "express", "supabase", "groq", "nvidia-nim"],
+  "author": "CivicFlow Team",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "groq-sdk": "^0.15.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
