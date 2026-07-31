@@ -162,7 +162,7 @@ export const ComplaintMap = ({
   return (
     <div style={{ position: 'relative', width: '100%', height, borderRadius: '14px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.06)', ...style }}>
       {/* Floating Action Controls */}
-      <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 1000, display: 'flex', gap: '0.4rem' }}>
+      <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 400, display: 'flex', gap: '0.4rem' }}>
         <button
           onClick={handleRecenter}
           style={{

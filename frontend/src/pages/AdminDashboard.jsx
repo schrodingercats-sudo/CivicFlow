@@ -79,6 +79,13 @@ export const AdminDashboard = () => {
   if (loading) return <div style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>Loading Admin Analytics...</div>;
 
   const summary = stats?.summary || {};
+  const totalComplaintsCount = summary.totalComplaints ?? complaints.length;
+  const pendingCount = (summary.submitted !== undefined && summary.inProgress !== undefined)
+    ? (summary.submitted + summary.inProgress)
+    : complaints.filter(c => c.status === 'submitted' || c.status === 'in_progress' || c.status === 'assigned' || c.status === 'under_review').length;
+  const resolvedCount = summary.resolved ?? complaints.filter(c => c.status === 'resolved' || c.status === 'closed').length;
+  const criticalCount = complaints.filter(c => c.priority === 'critical' && c.status !== 'resolved' && c.status !== 'closed' && c.status !== 'withdrawn').length;
+
   const departmentStats = stats?.departmentStats || [];
   const categoryDist = stats?.categoryDistribution || {};
 
@@ -100,25 +107,25 @@ export const AdminDashboard = () => {
       <div className="grid-4" style={{ marginBottom: '2rem' }}>
         <div className="clay-card" style={{ padding: '1.25rem' }}>
           <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Total Complaints</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f172a', margin: '0.3rem 0' }}>{summary.total || 0}</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f172a', margin: '0.3rem 0' }}>{totalComplaintsCount}</div>
           <div style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 600 }}>100% Tracked</div>
         </div>
 
         <div className="clay-card" style={{ padding: '1.25rem' }}>
           <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Pending Action</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#b45309', margin: '0.3rem 0' }}>{summary.pending || 0}</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#b45309', margin: '0.3rem 0' }}>{pendingCount}</div>
           <div style={{ fontSize: '0.75rem', color: '#b45309' }}>Requires Dispatch</div>
         </div>
 
         <div className="clay-card" style={{ padding: '1.25rem' }}>
           <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Resolved & Closed</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#15803d', margin: '0.3rem 0' }}>{summary.resolved || 0}</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#15803d', margin: '0.3rem 0' }}>{resolvedCount}</div>
           <div style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 600 }}>Resolution Success Rate</div>
         </div>
 
         <div className="clay-card" style={{ padding: '1.25rem' }}>
           <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Critical Escalations</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#dc2626', margin: '0.3rem 0' }}>{summary.critical || 0}</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#dc2626', margin: '0.3rem 0' }}>{criticalCount}</div>
           <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>Immediate Field Dispatch</div>
         </div>
       </div>
@@ -139,15 +146,15 @@ export const AdminDashboard = () => {
                 <div style={{ display: 'flex', gap: '1rem', textAlign: 'right' }}>
                   <div>
                     <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Total</div>
-                    <div style={{ fontWeight: 800, color: '#0f172a' }}>{dept.totalComplaints}</div>
+                    <div style={{ fontWeight: 800, color: '#0f172a' }}>{dept.total ?? dept.totalComplaints ?? 0}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.7rem', color: '#b45309' }}>Pending</div>
-                    <div style={{ fontWeight: 800, color: '#b45309' }}>{dept.pendingComplaints}</div>
+                    <div style={{ fontWeight: 800, color: '#b45309' }}>{dept.pending ?? dept.pendingComplaints ?? 0}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.7rem', color: '#15803d' }}>Resolved</div>
-                    <div style={{ fontWeight: 800, color: '#15803d' }}>{dept.resolvedComplaints}</div>
+                    <div style={{ fontWeight: 800, color: '#15803d' }}>{dept.resolved ?? dept.resolvedComplaints ?? 0}</div>
                   </div>
                 </div>
               </div>
