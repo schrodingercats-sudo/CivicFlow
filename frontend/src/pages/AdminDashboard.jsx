@@ -46,9 +46,11 @@ export const AdminDashboard = () => {
 
     setReassigning(true);
     try {
+      const isRejectedOrWithdrawn = reassignModalItem.status === 'rejected' || reassignModalItem.status === 'withdrawn';
       await complaintService.updateStatus(reassignModalItem.id, {
         department_id: selectedDept,
-        remarks: 'Department manually reassigned by Administrator'
+        status: isRejectedOrWithdrawn ? 'submitted' : reassignModalItem.status,
+        remarks: 'Department manually reassigned & reactivated by Administrator'
       });
       setReassignModalItem(null);
       await loadAdminData();

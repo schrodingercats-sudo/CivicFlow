@@ -199,16 +199,16 @@ export const updateComplaintStatus = async (req, res, next) => {
     
     // Check if department is being reassigned
     const isDeptChanged = department_id && department_id !== existingComplaint.department_id;
-    if (isDeptChanged) {
+    if (department_id !== undefined) {
       updates.department_id = department_id;
-      updates.assigned_officer_id = null; // Unassign previous officer on dept transfer
-      
-      // Automatically reactivate rejected or withdrawn complaints to 'submitted' when reassigned
-      if (existingComplaint.status === 'rejected' || existingComplaint.status === 'withdrawn') {
-        status = 'submitted';
+      if (isDeptChanged) {
+        updates.assigned_officer_id = null; // Unassign previous officer on dept transfer
       }
-    } else if (department_id !== undefined) {
-      updates.department_id = department_id;
+    }
+
+    // Automatically reactivate rejected or withdrawn complaints to 'submitted' upon department reassignment
+    if ((existingComplaint.status === 'rejected' || existingComplaint.status === 'withdrawn') && (!status || status === existingComplaint.status)) {
+      status = 'submitted';
     }
 
     if (status) updates.status = status;
