@@ -44,11 +44,11 @@ export const Navbar = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           {user.role === 'citizen' && (
             <>
-              <Link to="/submit" className="btn btn-primary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }}>
+              <Link to="/submit" className="btn btn-primary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', textDecoration: 'none' }}>
                 <PlusCircle size={15} /> <span className="nav-links-text">Submit Issue</span>
               </Link>
-              <Link to="/citizen" className="nav-links-text" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}>
-                <FileText size={16} /> My Complaints
+              <Link to="/citizen" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}>
+                <FileText size={16} /> <span className="nav-links-text">My Complaints</span>
               </Link>
             </>
           )}
@@ -64,6 +64,11 @@ export const Navbar = () => {
               <LayoutDashboard size={16} /> <span className="nav-links-text">Admin Dashboard</span>
             </Link>
           )}
+
+          {/* Explicit Profile Button for All Roles */}
+          <Link to="/profile" className="btn btn-secondary" style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none' }}>
+            <User size={15} /> <span className="nav-links-text">Profile</span>
+          </Link>
 
           <NotificationBell />
 
