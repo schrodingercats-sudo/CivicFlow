@@ -95,15 +95,22 @@ export const ComplaintMap = ({
           const marker = L.marker([mLat, mLng], { icon: customIcon }).addTo(map);
           bounds.extend([mLat, mLng]);
           marker.bindPopup(`
-            <div style="font-family: inherit; font-size: 0.85rem; padding: 2px; max-width: 240px; word-break: break-word;">
-              <strong style="color: #0f172a; font-size: 0.9rem; display: block; margin-bottom: 4px; line-height: 1.3;">${m.title || 'Complaint Location'}</strong>
-              <div style="color: #64748b; font-size: 0.75rem; margin-bottom: 6px; line-height: 1.3;">${m.address || 'Reported Location'}</div>
-              <a href="/complaint/${m.id}" style="display: inline-block; background: #0f172a; color: #fff; text-decoration: none; padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">View Issue Details ↗</a>
+            <div style="font-family: inherit; width: 220px; box-sizing: border-box; padding: 2px;">
+              <strong style="color: #0f172a; font-size: 0.9rem; display: block; margin-bottom: 6px; line-height: 1.35; white-space: normal;">
+                ${m.title || 'Complaint Location'}
+              </strong>
+              <div style="color: #64748b; font-size: 0.78rem; margin-bottom: 10px; line-height: 1.35; white-space: normal;">
+                ${m.address || 'Reported Location'}
+              </div>
+              <a href="/complaint/${m.id}" style="display: block; width: 100%; text-align: center; background: #0f172a; color: #ffffff; text-decoration: none; padding: 6px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; box-sizing: border-box;">
+                View Issue Details ↗
+              </a>
             </div>
           `, {
+            minWidth: 220,
+            maxWidth: 250,
             autoPan: true,
-            autoPanPadding: [35, 35],
-            maxWidth: 270
+            autoPanPadding: [40, 40]
           });
         }
       });
@@ -116,18 +123,25 @@ export const ComplaintMap = ({
       const googleMapsUrl = `https://www.google.com/maps?q=${initialLat},${initialLng}`;
 
       marker.bindPopup(`
-        <div style="font-family: inherit; font-size: 0.85rem; padding: 2px; max-width: 240px; word-break: break-word;">
-          <div style="font-weight: 800; color: #0f172a; font-size: 0.9rem; line-height: 1.35; margin-bottom: 4px;">${title || 'Exact Incident Spot'}</div>
-          <div style="color: #475569; font-size: 0.78rem; line-height: 1.3; margin-bottom: 6px;">${address || 'Citizen Geo-tagged GPS'}</div>
-          <div style="font-size: 0.72rem; color: #64748b; margin-bottom: 8px;">GPS: ${initialLat.toFixed(6)}, ${initialLng.toFixed(6)}</div>
-          <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 4px; background: #2563eb; color: #ffffff; text-decoration: none; padding: 5px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 700;">
+        <div style="font-family: inherit; width: 220px; box-sizing: border-box; padding: 2px;">
+          <div style="font-weight: 800; color: #0f172a; font-size: 0.9rem; line-height: 1.35; margin-bottom: 6px; white-space: normal;">
+            ${title || 'Exact Incident Spot'}
+          </div>
+          <div style="color: #475569; font-size: 0.78rem; line-height: 1.35; margin-bottom: 6px; white-space: normal;">
+            ${address || 'Citizen Geo-tagged GPS'}
+          </div>
+          <div style="font-size: 0.72rem; color: #64748b; margin-bottom: 10px;">
+            GPS: ${initialLat.toFixed(6)}, ${initialLng.toFixed(6)}
+          </div>
+          <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" style="display: block; width: 100%; text-align: center; background: #2563eb; color: #ffffff; text-decoration: none; padding: 6px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; box-sizing: border-box;">
             Open in Google Maps ↗
           </a>
         </div>
       `, {
+        minWidth: 220,
+        maxWidth: 250,
         autoPan: true,
-        autoPanPadding: [35, 35],
-        maxWidth: 270
+        autoPanPadding: [40, 40]
       }).openPopup();
     }
 

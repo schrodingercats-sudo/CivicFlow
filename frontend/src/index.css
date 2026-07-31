@@ -437,21 +437,30 @@ body {
   }
 }
 
-/* Responsive Leaflet Map Popups */
+/* Responsive Leaflet Map Popups - Fixed Crisp Layout */
 .leaflet-popup-content-wrapper {
   border-radius: 12px !important;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.25) !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25) !important;
   padding: 4px !important;
-  max-width: 270px !important;
+  min-width: 240px !important;
+  width: 240px !important;
+  max-width: 260px !important;
 }
 
 .leaflet-popup-content {
   margin: 10px 12px !important;
   line-height: 1.4 !important;
-  width: auto !important;
-  max-width: 240px !important;
-  word-break: break-word !important;
+  min-width: 216px !important;
+  width: 216px !important;
+  max-width: 236px !important;
+  word-wrap: break-word !important;
+  word-break: normal !important;
   white-space: normal !important;
+}
+
+.leaflet-popup-content * {
+  white-space: normal !important;
+  word-break: normal !important;
 }
 
 .leaflet-popup-tip {
