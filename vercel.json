@@ -1,8 +1,13 @@
 {
   "version": 2,
-  "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/index.js": {
+      "memory": 512,
+      "maxDuration": 10
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
