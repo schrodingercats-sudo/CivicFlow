@@ -33,7 +33,7 @@ export const AdminDashboard = () => {
       ]);
       setStats(statsRes);
       setComplaints(complaintsRes.complaints || []);
-      setDepartments(deptsRes || []);
+      setDepartments(deptsRes?.departments || []);
     } catch (err) {
       console.error('Failed to load admin metrics:', err);
     } finally {
@@ -78,16 +78,18 @@ export const AdminDashboard = () => {
 
   if (loading) return <div style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>Loading Admin Analytics...</div>;
 
-  const summary = stats?.summary || {};
-  const totalComplaintsCount = summary.totalComplaints ?? complaints.length;
-  const pendingCount = (summary.submitted !== undefined && summary.inProgress !== undefined)
-    ? (summary.submitted + summary.inProgress)
-    : complaints.filter(c => c.status === 'submitted' || c.status === 'in_progress' || c.status === 'assigned' || c.status === 'under_review').length;
-  const resolvedCount = summary.resolved ?? complaints.filter(c => c.status === 'resolved' || c.status === 'closed').length;
-  const criticalCount = complaints.filter(c => c.priority === 'critical' && c.status !== 'resolved' && c.status !== 'closed' && c.status !== 'withdrawn').length;
+  // Stats API returns flat snake_case fields: total_complaints, pending_action, resolved_closed, critical_escalations, resolution_rate
+  const totalComplaintsCount = stats?.total_complaints ?? complaints.length;
+  const pendingCount = stats?.pending_action ?? complaints.filter(c => ['submitted', 'in_progress', 'assigned', 'under_review'].includes(c.status)).length;
+  const resolvedCount = stats?.resolved_closed ?? complaints.filter(c => c.status === 'resolved' || c.status === 'closed').length;
+  const criticalCount = stats?.critical_escalations ?? complaints.filter(c => c.priority === 'critical' && c.status !== 'resolved' && c.status !== 'closed' && c.status !== 'withdrawn').length;
 
-  const departmentStats = stats?.departmentStats || [];
-  const categoryDist = stats?.categoryDistribution || {};
+  // Derive department stats and category distribution from loaded data (API doesn't return these nested)
+  const departmentStats = (departments || []).map(dept => {
+    const dc = complaints.filter(c => c.department_id === dept.id);
+    return { id: dept.id, name: dept.name, code: dept.code, total: dc.length, pending: dc.filter(c => !['resolved', 'closed', 'rejected', 'withdrawn'].includes(c.status)).length, resolved: dc.filter(c => c.status === 'resolved' || c.status === 'closed').length };
+  });
+  const categoryDist = complaints.reduce((acc, c) => { if (c.category) acc[c.category] = (acc[c.category] || 0) + 1; return acc; }, {});
 
   return (
     <div>
