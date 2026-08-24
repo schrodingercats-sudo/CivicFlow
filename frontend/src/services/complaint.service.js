@@ -18,7 +18,7 @@ export const complaintService = {
   },
 
   updateStatus: async (id, statusData) => {
-    return await apiRequest(`/complaints/${id}`, {
+    return await apiRequest(`/complaints/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify(statusData)
     });
@@ -43,7 +43,7 @@ export const complaintService = {
   },
 
   getAdminStats: async () => {
-    return await apiRequest('/analytics/stats');
+    return await apiRequest('/analytics/summary');
   },
 
   deleteComplaint: async (id) => {

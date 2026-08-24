@@ -31,7 +31,14 @@ export const ComplaintDetailPage = () => {
     setLoading(true);
     try {
       const data = await complaintService.getComplaintById(id);
-      setComplaint(data);
+      // API returns { complaint: {...} } — unwrap it
+      const c = data?.complaint || data;
+      // Ensure timeline and rating arrays exist even if API doesn't return them
+      if (!c.timeline) c.timeline = c.cf_complaint_updates || [];
+      if (!c.rating) c.rating = c.cf_ratings || null;
+      // Normalize citizen data — might come as cf_users from FK join
+      if (!c.citizen) c.citizen = c.cf_users || null;
+      setComplaint(c);
     } catch (err) {
       setError(err.message || 'Failed to load complaint details');
     } finally {

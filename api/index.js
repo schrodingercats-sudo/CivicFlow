@@ -232,6 +232,83 @@ app.patch('/api/v1/complaints/:id/status', requireAuth, async (req, res) => {
   return ok(res, 200, { complaint: data }, 'Status updated');
 });
 
+app.post('/api/v1/complaints/:id/withdraw', requireAuth, async (req, res) => {
+  const { reason } = req.body;
+  const { data: complaint, error: fetchErr } = await supabase
+    .from('cf_complaints')
+    .select('id, title, status, citizen_id')
+    .eq('id', req.params.id)
+    .single();
+
+  if (fetchErr || !complaint) return fail(res, 404, 'Complaint not found');
+  if (complaint.citizen_id !== req.user.id && req.user.role !== 'admin') return fail(res, 403, 'Forbidden');
+  if (['closed', 'resolved', 'withdrawn'].includes(complaint.status)) return fail(res, 400, 'Complaint already resolved/withdrawn');
+
+  const { data, error } = await supabase
+    .from('cf_complaints')
+    .update({ status: 'withdrawn', updated_at: new Date().toISOString() })
+    .eq('id', req.params.id)
+    .select()
+    .single();
+
+  if (error) return fail(res, 500, `Withdraw failed: ${error.message}`);
+
+  await supabase.from('cf_complaint_updates').insert([{
+    complaint_id: req.params.id,
+    updated_by: req.user.id,
+    old_status: complaint.status,
+    new_status: 'withdrawn',
+    remarks: reason ? `Withdrawn: ${reason}` : 'Complaint withdrawn by citizen.'
+  }]);
+
+  return ok(res, 200, { complaint: data }, 'Complaint withdrawn');
+});
+
+app.post('/api/v1/complaints/:id/rating', requireAuth, async (req, res) => {
+  const { rating_score, feedback } = req.body;
+  if (!rating_score || rating_score < 1 || rating_score > 5) return fail(res, 400, 'Rating score must be 1-5');
+
+  const { data: complaint } = await supabase.from('cf_complaints').select('id, citizen_id, status').eq('id', req.params.id).single();
+  if (!complaint) return fail(res, 404, 'Complaint not found');
+  if (complaint.citizen_id !== req.user.id) return fail(res, 403, 'Only the reporting citizen can rate');
+  if (!['resolved', 'closed'].includes(complaint.status)) return fail(res, 400, 'Can only rate resolved/closed complaints');
+
+  const { data, error } = await supabase.from('cf_ratings').insert([{
+    complaint_id: req.params.id,
+    citizen_id: req.user.id,
+    rating_score,
+    feedback: feedback || null
+  }]).select('*').single();
+
+  if (error) return fail(res, 500, `Rating failed: ${error.message}`);
+  return ok(res, 201, { rating: data }, 'Rating submitted');
+});
+
+app.delete('/api/v1/complaints/:id', requireAuth, async (req, res) => {
+  const { data: complaint, error: fetchErr } = await supabase
+    .from('cf_complaints')
+    .select('id, title, status, citizen_id')
+    .eq('id', req.params.id)
+    .single();
+
+  if (fetchErr || !complaint) return fail(res, 404, 'Complaint not found');
+
+  if (req.user.role === 'citizen') {
+    if (complaint.citizen_id !== req.user.id) return fail(res, 403, 'You can only delete your own complaints');
+    if (complaint.status !== 'submitted') return fail(res, 400, 'Only submitted complaints can be deleted');
+  }
+
+  // Cascade delete related records
+  await supabase.from('cf_ratings').delete().eq('complaint_id', req.params.id);
+  await supabase.from('cf_complaint_updates').delete().eq('complaint_id', req.params.id);
+  await supabase.from('cf_notifications').delete().eq('link_url', `/complaint/${req.params.id}`);
+
+  const { error } = await supabase.from('cf_complaints').delete().eq('id', req.params.id);
+  if (error) return fail(res, 500, `Delete failed: ${error.message}`);
+
+  return ok(res, 200, null, 'Complaint deleted');
+});
+
 // ── Analytics (Admin) ─────────────────────────────────────────────────────────
 app.get('/api/v1/analytics/summary', requireAuth, async (req, res) => {
   if (req.user.role !== 'admin') return fail(res, 403, 'Forbidden');

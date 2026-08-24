@@ -121,12 +121,14 @@ export const SubmitComplaintPage = () => {
     setSubmitting(true);
 
     try {
-      const complaint = await complaintService.createComplaint({
+      const result = await complaintService.createComplaint({
         ...formData,
         latitude: parseFloat(formData.latitude),
         longitude: parseFloat(formData.longitude)
       });
-      navigate(`/complaint/${complaint.id}`);
+      // API returns { complaint: {...} } — unwrap it
+      const created = result?.complaint || result;
+      navigate(`/complaint/${created.id}`);
     } catch (err) {
       setError(err.message || 'Failed to submit complaint');
     } finally {
