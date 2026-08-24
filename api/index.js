@@ -113,7 +113,8 @@ app.get('/api/v1/complaints', requireAuth, async (req, res) => {
   const { status, category, page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
 
-  let query = supabase.from('cf_complaints').select('*, cf_users(name, email), cf_departments(name, code)', { count: 'exact' });
+  // Explicit FK hint: !cf_complaints_citizen_id_fkey resolves ambiguity (cf_complaints has both citizen_id & assigned_officer_id → cf_users)
+  let query = supabase.from('cf_complaints').select('*, cf_users!cf_complaints_citizen_id_fkey(name, email), cf_departments(name, code)', { count: 'exact' });
 
   if (req.user.role === 'citizen') query = query.eq('citizen_id', req.user.id);
   if (req.user.role === 'officer') query = query.eq('department_id', req.user.department_id);
@@ -131,7 +132,7 @@ app.get('/api/v1/complaints/all', requireAuth, async (req, res) => {
   if (!['admin', 'officer'].includes(req.user.role)) return fail(res, 403, 'Forbidden');
   const { status, category } = req.query;
 
-  let query = supabase.from('cf_complaints').select('*, cf_users(name, email, phone), cf_departments(name, code)');
+  let query = supabase.from('cf_complaints').select('*, cf_users!cf_complaints_citizen_id_fkey(name, email, phone), cf_departments(name, code)');
   if (req.user.role === 'officer') query = query.eq('department_id', req.user.department_id);
   if (status) query = query.eq('status', status);
   if (category) query = query.eq('category', category);
@@ -145,7 +146,7 @@ app.get('/api/v1/complaints/all', requireAuth, async (req, res) => {
 app.get('/api/v1/complaints/:id', async (req, res) => {
   const { data, error } = await supabase
     .from('cf_complaints')
-    .select('*, cf_users(name, email, phone), cf_departments(name, code), cf_complaint_updates(*, cf_users(name, role))')
+    .select('*, cf_users!cf_complaints_citizen_id_fkey(name, email, phone), cf_departments(name, code), cf_complaint_updates(*)')
     .eq('id', req.params.id)
     .single();
 
@@ -154,7 +155,7 @@ app.get('/api/v1/complaints/:id', async (req, res) => {
 });
 
 app.post('/api/v1/complaints', requireAuth, async (req, res) => {
-  const { title, description, category, location_text, latitude, longitude, image_base64 } = req.body;
+  const { title, description, category, location_text, address, latitude, longitude, image_base64, image_url } = req.body;
   if (!title || !description || !category) return fail(res, 400, 'title, description, category are required');
 
   // Auto-assign department by category
@@ -175,15 +176,17 @@ app.post('/api/v1/complaints', requireAuth, async (req, res) => {
     .from('cf_complaints')
     .insert([{
       citizen_id: req.user.id,
-      title, description, category,
-      location_text: location_text || null,
+      title,
+      description,
+      category,
+      address: address || location_text || null,
       latitude: latitude || null,
       longitude: longitude || null,
-      image_base64: image_base64 || null,
+      image_url: image_url || image_base64 || null,
       department_id,
       status: 'pending'
     }])
-    .select('*, cf_users(name, email), cf_departments(name, code)')
+    .select('*, cf_users!cf_complaints_citizen_id_fkey(name, email), cf_departments(name, code)')
     .single();
 
   if (error || !data) return fail(res, 500, `Failed to submit: ${error?.message}`);
