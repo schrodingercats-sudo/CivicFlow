@@ -5,7 +5,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { ComplaintImage } from '../components/common/ComplaintImage';
 import { ComplaintMap } from '../components/common/ComplaintMap';
-import { Briefcase, CheckCircle2, MapPin, Eye, Edit3, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { Briefcase, CheckCircle2, MapPin, Eye, Edit3, Image as ImageIcon, Sparkles, Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const PROOF_PHOTO_PRESETS = [
@@ -13,6 +13,26 @@ const PROOF_PHOTO_PRESETS = [
   { label: 'Garbage Cleared', url: '/images/complaints/garbage.jpg' },
   { label: 'Light Repaired', url: '/images/complaints/street_lights.jpg' }
 ];
+
+const compressProofImage = (file, callback) => {
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      const MAX = 1200;
+      if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
+      else { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+};
 
 export const OfficerDashboard = () => {
   const { user } = useAuth();
@@ -23,7 +43,8 @@ export const OfficerDashboard = () => {
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [newStatus, setNewStatus] = useState('in_progress');
   const [remarks, setRemarks] = useState('');
-  const [proofUrl, setProofUrl] = useState(PROOF_PHOTO_PRESETS[0].url);
+  const [proofUrl, setProofUrl] = useState('');
+  const [proofPreview, setProofPreview] = useState('');
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
@@ -46,7 +67,18 @@ export const OfficerDashboard = () => {
     setSelectedComplaint(complaint);
     setNewStatus(complaint.status === 'submitted' ? 'in_progress' : 'resolved');
     setRemarks(complaint.ai_suggested_response || `Action initiated by ${user.name}`);
-    setProofUrl(PROOF_PHOTO_PRESETS[0].url);
+    setProofUrl('');
+    setProofPreview('');
+  };
+
+  const handleProofFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      compressProofImage(file, (base64) => {
+        setProofUrl(base64);
+        setProofPreview(base64);
+      });
+    }
   };
 
   const handleUpdateStatus = async (e) => {
@@ -58,7 +90,7 @@ export const OfficerDashboard = () => {
       await complaintService.updateStatus(selectedComplaint.id, {
         status: newStatus,
         remarks: remarks,
-        proof_image_url: newStatus === 'resolved' ? proofUrl : null
+        proof_image_url: proofUrl || null
       });
 
       setSelectedComplaint(null);
@@ -214,7 +246,7 @@ export const OfficerDashboard = () => {
           background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '1.5rem'
         }}>
-          <div className="clay-card" style={{ padding: '2rem', maxWidth: '520px', width: '100%', background: '#ffffff' }}>
+          <div className="clay-card" style={{ padding: '2rem', maxWidth: '520px', width: '100%', background: '#ffffff', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.25rem' }}>
               Update Complaint Action
             </h2>
@@ -247,29 +279,71 @@ export const OfficerDashboard = () => {
               {newStatus === 'resolved' && (
                 <div style={{ background: '#f8fafc', padding: '1.15rem', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '1.25rem' }}>
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#0f172a' }}>
-                    <ImageIcon size={16} /> Attach Resolution Proof Image URL
+                    <ImageIcon size={16} /> Resolution Proof Image <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.78rem' }}>(Optional)</span>
                   </label>
-                  <input
-                    type="url"
-                    className="form-input"
-                    value={proofUrl}
-                    onChange={(e) => setProofUrl(e.target.value)}
-                    required
-                  />
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.5rem' }}>Sample proof presets:</div>
-                  <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem' }}>
+
+                  {/* File Upload */}
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600, marginBottom: '0.25rem', display: 'block' }}>Upload from device</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProofFileUpload}
+                      className="form-input"
+                      style={{ padding: '0.4rem', fontSize: '0.82rem' }}
+                    />
+                  </div>
+
+                  {/* URL Input */}
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600, marginBottom: '0.25rem', display: 'block' }}>Or paste image URL</label>
+                    <input
+                      type="url"
+                      className="form-input"
+                      placeholder="https://example.com/proof-photo.jpg"
+                      value={proofUrl.startsWith('data:') ? '' : proofUrl}
+                      onChange={(e) => { setProofUrl(e.target.value); setProofPreview(e.target.value); }}
+                    />
+                  </div>
+
+                  {/* Presets */}
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.35rem', fontWeight: 600 }}>Quick presets:</div>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                     {PROOF_PHOTO_PRESETS.map((p, idx) => (
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => setProofUrl(p.url)}
+                        onClick={() => { setProofUrl(p.url); setProofPreview(p.url); }}
                         className="btn btn-secondary"
                         style={{ padding: '0.25rem 0.55rem', fontSize: '0.7rem' }}
                       >
                         {p.label}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => { setProofUrl(''); setProofPreview(''); }}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.25rem 0.55rem', fontSize: '0.7rem', color: '#ef4444' }}
+                    >
+                      No Proof
+                    </button>
                   </div>
+
+                  {/* Preview */}
+                  {proofPreview && (
+                    <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <img
+                        src={proofPreview}
+                        alt="Proof preview"
+                        style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                      <span style={{ fontSize: '0.78rem', color: '#166534', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <CheckCircle2 size={14} /> Proof attached
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -201,33 +201,96 @@ app.post('/api/v1/complaints', requireAuth, async (req, res) => {
     remarks: 'Complaint submitted by citizen.'
   }]);
 
+  // Notify citizen (confirmation)
+  await supabase.from('cf_notifications').insert([{
+    user_id: req.user.id,
+    title: 'Complaint Registered',
+    message: `Your complaint "${title}" has been submitted and is being processed.`,
+    link_url: `/complaint/${data.id}`
+  }]);
+
+  // Notify all admins about new complaint
+  const { data: admins } = await supabase.from('cf_users').select('id').eq('role', 'admin');
+  if (admins?.length) {
+    await supabase.from('cf_notifications').insert(
+      admins.map(a => ({
+        user_id: a.id,
+        title: 'New Complaint Filed',
+        message: `New complaint: "${title}" (${category}) has been submitted.`,
+        link_url: `/complaint/${data.id}`
+      }))
+    );
+  }
+
+  // Notify officers in the assigned department
+  if (department_id) {
+    const { data: officers } = await supabase.from('cf_users').select('id').eq('role', 'officer').eq('department_id', department_id);
+    if (officers?.length) {
+      await supabase.from('cf_notifications').insert(
+        officers.map(o => ({
+          user_id: o.id,
+          title: 'New Complaint Assigned',
+          message: `A new complaint "${title}" has been assigned to your department.`,
+          link_url: `/complaint/${data.id}`
+        }))
+      );
+    }
+  }
+
   return ok(res, 201, { complaint: data }, 'Complaint submitted successfully');
 });
 
 app.patch('/api/v1/complaints/:id/status', requireAuth, async (req, res) => {
   if (!['admin', 'officer'].includes(req.user.role)) return fail(res, 403, 'Forbidden');
-  const { status, remarks } = req.body;
+  const { status, remarks, proof_image_url, department_id } = req.body;
 
-  // Fetch current status first for audit log
-  const { data: existing } = await supabase.from('cf_complaints').select('status').eq('id', req.params.id).single();
+  // Fetch current complaint for audit log + citizen notification
+  const { data: existing } = await supabase.from('cf_complaints').select('status, title, citizen_id, department_id').eq('id', req.params.id).single();
+
+  const updates = { status, updated_at: new Date().toISOString() };
+  if (department_id) updates.department_id = department_id;
 
   const { data, error } = await supabase
     .from('cf_complaints')
-    .update({ status, updated_at: new Date().toISOString() })
+    .update(updates)
     .eq('id', req.params.id)
     .select()
     .single();
 
   if (error || !data) return fail(res, 500, `Update failed: ${error?.message}`);
 
-  // Log to cf_complaint_updates with correct column names (old_status, new_status, remarks)
+  // Log to cf_complaint_updates WITH proof_image_url
   await supabase.from('cf_complaint_updates').insert([{
     complaint_id: req.params.id,
     updated_by: req.user.id,
     old_status: existing?.status || null,
     new_status: status,
-    remarks: remarks || `Status updated to ${status}`
+    remarks: remarks || `Status updated to ${status}`,
+    proof_image_url: proof_image_url || null
   }]);
+
+  // Create notification for the citizen who filed the complaint
+  if (existing?.citizen_id) {
+    await supabase.from('cf_notifications').insert([{
+      user_id: existing.citizen_id,
+      title: `Status Update: ${status.replace(/_/g, ' ').toUpperCase()}`,
+      message: `Your complaint "${existing.title || 'Complaint'}" status was updated to ${status.replace(/_/g, ' ')}.`,
+      link_url: `/complaint/${req.params.id}`
+    }]);
+  }
+
+  // Also notify admins
+  const { data: admins } = await supabase.from('cf_users').select('id').eq('role', 'admin');
+  if (admins?.length) {
+    await supabase.from('cf_notifications').insert(
+      admins.map(a => ({
+        user_id: a.id,
+        title: 'Complaint Status Changed',
+        message: `"${existing?.title || 'Complaint'}" status changed to ${status.replace(/_/g, ' ')}.`,
+        link_url: `/complaint/${req.params.id}`
+      }))
+    );
+  }
 
   return ok(res, 200, { complaint: data }, 'Status updated');
 });
@@ -370,10 +433,35 @@ app.get('/api/v1/notifications', requireAuth, async (req, res) => {
     .select('*')
     .eq('user_id', req.user.id)
     .order('created_at', { ascending: false })
-    .limit(20);
+    .limit(30);
 
   if (error) return fail(res, 500, error.message);
-  return ok(res, 200, { notifications: data }, 'Notifications fetched');
+
+  const unreadCount = (data || []).filter(n => !n.is_read).length;
+  return ok(res, 200, { notifications: data || [], unreadCount }, 'Notifications fetched');
+});
+
+app.get('/api/v1/notifications/ntfy-topics', requireAuth, (req, res) => {
+  const NTFY_SECRET = process.env.NTFY_SECRET || 'x9k2m7p4';
+  const topics = [];
+
+  // Personal citizen topic for everyone
+  topics.push(`civicflow-citizen-${req.user.id}-${NTFY_SECRET}`);
+
+  if (req.user.role === 'admin') {
+    topics.push(`civicflow-admin-${NTFY_SECRET}`);
+  }
+
+  if (req.user.role === 'officer' && req.user.department_id) {
+    topics.push(`civicflow-officer-${req.user.department_id}-${NTFY_SECRET}`);
+  }
+
+  return ok(res, 200, { topics }, 'ntfy topics retrieved');
+});
+
+app.patch('/api/v1/notifications/read-all', requireAuth, async (req, res) => {
+  await supabase.from('cf_notifications').update({ is_read: true }).eq('user_id', req.user.id).eq('is_read', false);
+  return ok(res, 200, {}, 'All notifications marked read');
 });
 
 app.patch('/api/v1/notifications/:id/read', requireAuth, async (req, res) => {
