@@ -158,19 +158,17 @@ app.post('/api/v1/complaints', requireAuth, async (req, res) => {
   const { title, description, category, location_text, address, latitude, longitude, image_base64, image_url } = req.body;
   if (!title || !description || !category) return fail(res, 400, 'title, description, category are required');
 
-  // Auto-assign department by category
+  // Auto-assign department by category code
   const categoryDeptMap = {
     road_damage: 'DEPT_ROADS', garbage: 'DEPT_GARBAGE', street_lights: 'DEPT_LIGHTS',
-    drainage: 'DEPT_DRAIN', water_supply: 'DEPT_WATER', traffic: 'DEPT_TRAFFIC',
-    pollution: 'DEPT_POLLUTION', public_property: 'DEPT_PWD'
+    drainage: 'DEPT_DRAIN', water_supply: 'DEPT_WATER', electricity: 'DEPT_LIGHTS',
+    traffic: 'DEPT_TRAFFIC', pollution: 'DEPT_POLLUTION', public_property: 'DEPT_PWD', others: 'DEPT_PWD'
   };
 
-  const deptCode = categoryDeptMap[category];
+  const deptCode = categoryDeptMap[category] || 'DEPT_PWD';
   let department_id = null;
-  if (deptCode) {
-    const { data: dept } = await supabase.from('cf_departments').select('id').eq('code', deptCode).single();
-    department_id = dept?.id || null;
-  }
+  const { data: dept } = await supabase.from('cf_departments').select('id').eq('code', deptCode).single();
+  department_id = dept?.id || null;
 
   const { data, error } = await supabase
     .from('cf_complaints')
@@ -179,23 +177,39 @@ app.post('/api/v1/complaints', requireAuth, async (req, res) => {
       title,
       description,
       category,
-      address: address || location_text || null,
-      latitude: latitude || null,
-      longitude: longitude || null,
+      // address, latitude, longitude are NOT NULL in DB — provide defaults if missing
+      address: address || location_text || 'Location not specified',
+      latitude: parseFloat(latitude) || 0,
+      longitude: parseFloat(longitude) || 0,
       image_url: image_url || image_base64 || null,
       department_id,
-      status: 'pending'
+      status: 'submitted',    // ✅ valid enum: submitted|under_review|assigned|in_progress|resolved|closed|rejected|withdrawn
+      ai_status: 'pending',
+      priority: 'medium'
     }])
     .select('*, cf_users!cf_complaints_citizen_id_fkey(name, email), cf_departments(name, code)')
     .single();
 
   if (error || !data) return fail(res, 500, `Failed to submit: ${error?.message}`);
+
+  // Log initial audit entry
+  await supabase.from('cf_complaint_updates').insert([{
+    complaint_id: data.id,
+    updated_by: req.user.id,
+    old_status: null,
+    new_status: 'submitted',
+    remarks: 'Complaint submitted by citizen.'
+  }]);
+
   return ok(res, 201, { complaint: data }, 'Complaint submitted successfully');
 });
 
 app.patch('/api/v1/complaints/:id/status', requireAuth, async (req, res) => {
   if (!['admin', 'officer'].includes(req.user.role)) return fail(res, 403, 'Forbidden');
-  const { status, note } = req.body;
+  const { status, remarks } = req.body;
+
+  // Fetch current status first for audit log
+  const { data: existing } = await supabase.from('cf_complaints').select('status').eq('id', req.params.id).single();
 
   const { data, error } = await supabase
     .from('cf_complaints')
@@ -206,14 +220,14 @@ app.patch('/api/v1/complaints/:id/status', requireAuth, async (req, res) => {
 
   if (error || !data) return fail(res, 500, `Update failed: ${error?.message}`);
 
-  if (note) {
-    await supabase.from('cf_complaint_updates').insert([{
-      complaint_id: req.params.id,
-      updated_by: req.user.id,
-      status_changed_to: status,
-      note
-    }]);
-  }
+  // Log to cf_complaint_updates with correct column names (old_status, new_status, remarks)
+  await supabase.from('cf_complaint_updates').insert([{
+    complaint_id: req.params.id,
+    updated_by: req.user.id,
+    old_status: existing?.status || null,
+    new_status: status,
+    remarks: remarks || `Status updated to ${status}`
+  }]);
 
   return ok(res, 200, { complaint: data }, 'Status updated');
 });
@@ -222,19 +236,25 @@ app.patch('/api/v1/complaints/:id/status', requireAuth, async (req, res) => {
 app.get('/api/v1/analytics/summary', requireAuth, async (req, res) => {
   if (req.user.role !== 'admin') return fail(res, 403, 'Forbidden');
 
-  const { data: complaints } = await supabase.from('cf_complaints').select('status, created_at');
+  const { data: complaints } = await supabase.from('cf_complaints').select('status, category, created_at');
+  const { data: users } = await supabase.from('cf_users').select('id, role');
+  const { data: departments } = await supabase.from('cf_departments').select('id');
+
   const total = complaints?.length || 0;
-  const pending = complaints?.filter(c => c.status === 'pending').length || 0;
-  const inProgress = complaints?.filter(c => c.status === 'in_progress').length || 0;
-  const resolved = complaints?.filter(c => c.status === 'resolved').length || 0;
-  const critical = complaints?.filter(c => c.status === 'escalated').length || 0;
+  // Real DB statuses: submitted | under_review | assigned | in_progress | resolved | closed | rejected | withdrawn
+  const pendingAction = complaints?.filter(c => ['submitted', 'under_review', 'assigned', 'in_progress'].includes(c.status)).length || 0;
+  const resolved = complaints?.filter(c => c.status === 'resolved' || c.status === 'closed').length || 0;
+  const rejected = complaints?.filter(c => c.status === 'rejected' || c.status === 'withdrawn').length || 0;
 
   return ok(res, 200, {
     total_complaints: total,
-    pending_action: pending + inProgress,
+    pending_action: pendingAction,
     resolved_closed: resolved,
-    critical_escalations: critical,
-    resolution_rate: total > 0 ? Math.round((resolved / total) * 100) : 0
+    critical_escalations: rejected,
+    resolution_rate: total > 0 ? Math.round((resolved / total) * 100) : 0,
+    total_users: users?.length || 0,
+    total_officers: users?.filter(u => u.role === 'officer').length || 0,
+    total_departments: departments?.length || 0
   }, 'Analytics summary fetched');
 });
 
@@ -258,8 +278,8 @@ app.get('/api/v1/analytics/department-performance', requireAuth, async (req, res
       department: dept.name,
       code: dept.code,
       total: dc.length,
-      resolved: dc.filter(c => c.status === 'resolved').length,
-      pending: dc.filter(c => c.status === 'pending').length
+      resolved: dc.filter(c => c.status === 'resolved' || c.status === 'closed').length,
+      pending: dc.filter(c => !['resolved', 'closed', 'rejected', 'withdrawn'].includes(c.status)).length
     };
   });
 

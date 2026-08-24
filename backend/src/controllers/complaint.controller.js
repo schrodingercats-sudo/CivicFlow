@@ -63,7 +63,7 @@ export const createComplaint = async (req, res, next) => {
           department_id: assignedDeptId
         }
       ])
-      .select('*, cf_departments(name, code), cf_users!citizen_id(name, email)')
+      .select('*, cf_departments(name, code), cf_users!cf_complaints_citizen_id_fkey(name, email)')
       .single();
 
     if (error || !complaint) {
@@ -106,7 +106,7 @@ export const getComplaints = async (req, res, next) => {
     let query = supabase
       .from('cf_complaints')
       .select(
-        '*, cf_departments(name, code), cf_users!citizen_id(name, email), assigned_officer:cf_users!assigned_officer_id(name, email)',
+        '*, cf_departments(name, code), cf_users!cf_complaints_citizen_id_fkey(name, email), assigned_officer:cf_users!cf_complaints_assigned_officer_id_fkey(name, email)',
         { count: 'exact' }
       );
 
@@ -147,7 +147,7 @@ export const getComplaintById = async (req, res, next) => {
     const { data: complaint, error } = await supabase
       .from('cf_complaints')
       .select(
-        '*, cf_departments(name, code), citizen:cf_users!citizen_id(name, email, phone), assigned_officer:cf_users!assigned_officer_id(name, email, phone)'
+        '*, cf_departments(name, code), citizen:cf_users!cf_complaints_citizen_id_fkey(name, email, phone), assigned_officer:cf_users!cf_complaints_assigned_officer_id_fkey(name, email, phone)'
       )
       .eq('id', id)
       .single();
@@ -162,7 +162,7 @@ export const getComplaintById = async (req, res, next) => {
 
     const { data: timeline } = await supabase
       .from('cf_complaint_updates')
-      .select('*, updater:cf_users!updated_by(name, role)')
+      .select('*, updater:cf_users!cf_complaint_updates_updated_by_fkey(name, role)')
       .eq('complaint_id', id)
       .order('created_at', { ascending: true });
 
