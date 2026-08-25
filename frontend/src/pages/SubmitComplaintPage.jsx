@@ -2,15 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { complaintService } from '../services/complaint.service';
 import { ComplaintMap } from '../components/common/ComplaintMap';
-import { Send, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
-
-const SAMPLE_PHOTOS = [
-  { label: 'Pothole Hazard', category: 'road_damage', url: '/images/complaints/road_damage.jpg' },
-  { label: 'Drainage Overflow', category: 'drainage', url: '/images/complaints/drainage.jpg' },
-  { label: 'Garbage Dumpster', category: 'garbage', url: '/images/complaints/garbage.jpg' },
-  { label: 'Broken Street Light', category: 'street_lights', url: '/images/complaints/street_lights.jpg' },
-  { label: 'Water Pipeline Leak', category: 'water_supply', url: '/images/complaints/water_supply.jpg' }
-];
+import { GeoCamera } from '../components/common/GeoCamera';
+import { Send, MapPin, Upload, Navigation, CheckCircle2, AlertCircle, RefreshCw, Camera, Image as ImageIcon } from 'lucide-react';
 
 const compressImage = (file, callback) => {
   const reader = new FileReader();
@@ -56,13 +49,14 @@ export const SubmitComplaintPage = () => {
     description: '',
     category: 'road_damage',
     priority: 'medium',
-    latitude: '19.076090',
-    longitude: '72.877426',
-    address: 'Main MG Road, Crossing 4, Mumbai',
-    image_url: SAMPLE_PHOTOS[0].url
+    latitude: '',
+    longitude: '',
+    address: '',
+    image_url: null
   });
 
-  const [previewImage, setPreviewImage] = useState(SAMPLE_PHOTOS[0].url);
+  const [geoImageUrl, setGeoImageUrl] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
   const [locating, setLocating] = useState(false);
   const [gpsSuccess, setGpsSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -70,7 +64,6 @@ export const SubmitComplaintPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Automatically prompt and fetch live GPS location on page mount
     handleAutoLocate();
   }, []);
 
@@ -91,7 +84,7 @@ export const SubmitComplaintPage = () => {
           ...prev,
           latitude: lat,
           longitude: lng,
-          address: `GPS Location (${lat}, ${lng}), Local District`
+          address: prev.address || `GPS Location (${lat}, ${lng}), Local District`
         }));
         setLocating(false);
         setGpsSuccess(true);
@@ -99,7 +92,6 @@ export const SubmitComplaintPage = () => {
       (err) => {
         console.warn('GPS position acquisition failed:', err);
         setLocating(false);
-        setError('Could not fetch GPS location. Please check browser location permissions.');
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -111,8 +103,15 @@ export const SubmitComplaintPage = () => {
       compressImage(file, (compressedBase64) => {
         setPreviewImage(compressedBase64);
         setFormData(prev => ({ ...prev, image_url: compressedBase64 }));
+        setGeoImageUrl(null);
       });
     }
+  };
+
+  const handleRemovePhoto = () => {
+    setPreviewImage(null);
+    setFormData(prev => ({ ...prev, image_url: null }));
+    setGeoImageUrl(null);
   };
 
   const handleSubmit = async (e) => {
@@ -123,10 +122,10 @@ export const SubmitComplaintPage = () => {
     try {
       const result = await complaintService.createComplaint({
         ...formData,
-        latitude: parseFloat(formData.latitude),
-        longitude: parseFloat(formData.longitude)
+        latitude: parseFloat(formData.latitude) || 0,
+        longitude: parseFloat(formData.longitude) || 0,
+        geo_image_url: geoImageUrl || null
       });
-      // API returns { complaint: {...} } — unwrap it
       const created = result?.complaint || result;
       navigate(`/complaint/${created.id}`);
     } catch (err) {
@@ -136,6 +135,9 @@ export const SubmitComplaintPage = () => {
     }
   };
 
+  const hasPhoto = !!previewImage;
+  const hasGPS = !!formData.latitude && !!formData.longitude;
+
   return (
     <div style={{ maxWidth: '720px', margin: '1rem auto' }}>
       <div className="clay-card" style={{ padding: '2.5rem' }}>
@@ -143,7 +145,7 @@ export const SubmitComplaintPage = () => {
           Report Civic Complaint
         </h2>
         <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '2rem' }}>
-          Attach photo & auto-locate GPS position for AI-powered municipal triage.
+          Upload a real photo from the site & auto-locate GPS position. A GeoCam verified copy is generated automatically.
         </p>
 
         {error && (
@@ -194,16 +196,7 @@ export const SubmitComplaintPage = () => {
               <select
                 className="form-select"
                 value={formData.category}
-                onChange={(e) => {
-                  const cat = e.target.value;
-                  const matchingSample = SAMPLE_PHOTOS.find(s => s.category === cat);
-                  setFormData({
-                    ...formData,
-                    category: cat,
-                    image_url: matchingSample ? matchingSample.url : formData.image_url
-                  });
-                  if (matchingSample) setPreviewImage(matchingSample.url);
-                }}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
               >
                 <option value="road_damage">Road Damage</option>
                 <option value="drainage">Drainage & Sewage</option>
@@ -281,6 +274,7 @@ export const SubmitComplaintPage = () => {
                   className="form-input"
                   value={formData.latitude}
                   onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                  placeholder="Auto-detected"
                   required
                 />
               </div>
@@ -291,30 +285,32 @@ export const SubmitComplaintPage = () => {
                   className="form-input"
                   value={formData.longitude}
                   onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                  placeholder="Auto-detected"
                   required
                 />
               </div>
             </div>
 
-            {/* Live Interactive Leaflet Map Preview */}
-            <div style={{ marginTop: '1.25rem' }}>
-              <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 700, marginBottom: '0.5rem' }}>
-                Live GPS Pin Preview
+            {hasGPS && (
+              <div style={{ marginTop: '1.25rem' }}>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 700, marginBottom: '0.5rem' }}>
+                  Live GPS Pin Preview
+                </div>
+                <ComplaintMap
+                  latitude={formData.latitude}
+                  longitude={formData.longitude}
+                  address={formData.address}
+                  title={formData.title || 'Selected Incident Location'}
+                  height="260px"
+                />
               </div>
-              <ComplaintMap
-                latitude={formData.latitude}
-                longitude={formData.longitude}
-                address={formData.address}
-                title={formData.title || 'Selected Incident Location'}
-                height="260px"
-              />
-            </div>
+            )}
           </div>
 
-          {/* Photo File Upload Section */}
+          {/* Photo Upload Section */}
           <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#0f172a', fontWeight: 700, fontSize: '0.9rem', marginBottom: '1rem' }}>
-              <Upload size={18} color="#2563eb" /> Upload Complaint Photo
+              <Camera size={18} color="#2563eb" /> Upload Site Photo <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.78rem' }}>(Optional)</span>
             </div>
 
             <div className="form-group">
@@ -322,42 +318,60 @@ export const SubmitComplaintPage = () => {
               <input
                 type="file"
                 accept="image/*"
+                capture="environment"
                 onChange={handleFileUpload}
                 className="form-input"
                 style={{ padding: '0.5rem' }}
               />
             </div>
 
-            {previewImage && (
-              <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <img
-                  src={previewImage}
-                  alt="Complaint Preview"
-                  style={{ width: '120px', height: '90px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #cbd5e1', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}
-                />
-                <span style={{ fontSize: '0.8rem', color: '#166534', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <CheckCircle2 size={16} /> Photo Ready
-                </span>
+            {hasPhoto && (
+              <div>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <ImageIcon size={13} /> Original Photo
+                    </div>
+                    <img
+                      src={previewImage}
+                      alt="Original"
+                      style={{ width: '100%', maxHeight: '220px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #cbd5e1' }}
+                    />
+                  </div>
+
+                  {hasGPS && (
+                    <div style={{ flex: '1 1 200px' }}>
+                      <div style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 700, marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <CheckCircle2 size={13} /> GeoCam Verified
+                      </div>
+                      <GeoCamera
+                        imageSrc={previewImage}
+                        latitude={parseFloat(formData.latitude)}
+                        longitude={parseFloat(formData.longitude)}
+                        address={formData.address}
+                        onGeoImageReady={(geoBase64) => setGeoImageUrl(geoBase64)}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  className="btn btn-secondary"
+                  style={{ marginTop: '0.75rem', padding: '0.3rem 0.75rem', fontSize: '0.78rem', color: '#ef4444' }}
+                >
+                  Remove Photo
+                </button>
               </div>
             )}
 
-            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '1rem', marginBottom: '0.35rem', fontWeight: 600 }}>Or select a category photo sample:</div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {SAMPLE_PHOTOS.map((img, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => {
-                    setPreviewImage(img.url);
-                    setFormData(prev => ({ ...prev, image_url: img.url, category: img.category }));
-                  }}
-                  className="btn btn-secondary"
-                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
-                >
-                  {img.label}
-                </button>
-              ))}
-            </div>
+            {!hasPhoto && (
+              <div style={{ textAlign: 'center', padding: '1.5rem 0', color: '#94a3b8', fontSize: '0.85rem' }}>
+                <Upload size={24} style={{ marginBottom: '0.5rem', opacity: 0.5 }} />
+                <div>No photo uploaded. You can submit without a photo.</div>
+              </div>
+            )}
           </div>
 
           <button

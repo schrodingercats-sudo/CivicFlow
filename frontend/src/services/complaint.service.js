@@ -48,5 +48,21 @@ export const complaintService = {
 
   deleteComplaint: async (id) => {
     return await apiRequest(`/complaints/${id}`, { method: 'DELETE' });
+  },
+
+  // Worker-related
+  assignWorker: async (complaintId, workerId) => {
+    return await apiRequest(`/complaints/${complaintId}/assign-worker`, {
+      method: 'PATCH',
+      body: JSON.stringify({ worker_id: workerId })
+    });
+  },
+
+  getWorkers: async () => {
+    return await apiRequest('/workers');
+  },
+
+  getWorkerUpdates: async (complaintId) => {
+    return await apiRequest(`/complaints/${complaintId}/worker-updates`);
   }
 };

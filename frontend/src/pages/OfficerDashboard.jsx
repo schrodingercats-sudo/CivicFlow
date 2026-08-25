@@ -5,7 +5,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { ComplaintImage } from '../components/common/ComplaintImage';
 import { ComplaintMap } from '../components/common/ComplaintMap';
-import { Briefcase, CheckCircle2, MapPin, Eye, Edit3, Image as ImageIcon, Sparkles, Upload } from 'lucide-react';
+import { Briefcase, CheckCircle2, MapPin, Eye, Edit3, Image as ImageIcon, Sparkles, Upload, Wrench, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const PROOF_PHOTO_PRESETS = [
@@ -47,9 +47,24 @@ export const OfficerDashboard = () => {
   const [proofPreview, setProofPreview] = useState('');
   const [updating, setUpdating] = useState(false);
 
+  // Worker assignment
+  const [workers, setWorkers] = useState([]);
+  const [selectedWorkerId, setSelectedWorkerId] = useState('');
+  const [assigning, setAssigning] = useState(false);
+
   useEffect(() => {
     fetchDepartmentComplaints();
   }, [statusFilter]);
+
+  useEffect(() => {
+    const loadWorkers = async () => {
+      try {
+        const res = await complaintService.getWorkers();
+        setWorkers(res.workers || []);
+      } catch (err) { /* no workers available */ }
+    };
+    loadWorkers();
+  }, []);
 
   const fetchDepartmentComplaints = async () => {
     setLoading(true);
@@ -69,6 +84,21 @@ export const OfficerDashboard = () => {
     setRemarks(complaint.ai_suggested_response || `Action initiated by ${user.name}`);
     setProofUrl('');
     setProofPreview('');
+    setSelectedWorkerId('');
+  };
+
+  const handleAssignWorker = async () => {
+    if (!selectedComplaint || !selectedWorkerId) return;
+    setAssigning(true);
+    try {
+      await complaintService.assignWorker(selectedComplaint.id, selectedWorkerId);
+      setSelectedComplaint(null);
+      await fetchDepartmentComplaints();
+    } catch (err) {
+      alert(err.message || 'Failed to assign worker');
+    } finally {
+      setAssigning(false);
+    }
   };
 
   const handleProofFileUpload = (e) => {
@@ -343,6 +373,37 @@ export const OfficerDashboard = () => {
                         <CheckCircle2 size={14} /> Proof attached
                       </span>
                     </div>
+                  )}
+                </div>
+              )}
+              {/* Assign Field Worker */}
+              {workers.length > 0 && (
+                <div style={{ background: '#eff6ff', padding: '1.15rem', borderRadius: '12px', border: '1px solid #bfdbfe', marginBottom: '1.25rem' }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#0f172a' }}>
+                    <Wrench size={16} /> Assign Field Worker <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.78rem' }}>(Optional)</span>
+                  </label>
+                  <select
+                    className="form-select"
+                    value={selectedWorkerId}
+                    onChange={(e) => setSelectedWorkerId(e.target.value)}
+                  >
+                    <option value="">— Select Worker —</option>
+                    {workers.map(w => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} ({w.cf_departments?.name || 'General'})
+                      </option>
+                    ))}
+                  </select>
+                  {selectedWorkerId && (
+                    <button
+                      type="button"
+                      onClick={handleAssignWorker}
+                      className="btn btn-primary"
+                      style={{ marginTop: '0.75rem', width: '100%', padding: '0.55rem', fontSize: '0.85rem' }}
+                      disabled={assigning}
+                    >
+                      <UserPlus size={15} /> {assigning ? 'Dispatching...' : 'Dispatch Worker to Site'}
+                    </button>
                   )}
                 </div>
               )}

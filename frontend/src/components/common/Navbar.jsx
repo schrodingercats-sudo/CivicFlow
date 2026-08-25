@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { NotificationBell } from './NotificationBell';
-import { Shield, LogOut, FileText, LayoutDashboard, PlusCircle, User } from 'lucide-react';
+import { Shield, LogOut, FileText, LayoutDashboard, PlusCircle, User, Wrench } from 'lucide-react';
 
 export const Navbar = () => {
   const { user, logout } = useAuth();
@@ -56,6 +56,12 @@ export const Navbar = () => {
           {user.role === 'officer' && (
             <Link to="/officer" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}>
               <LayoutDashboard size={16} /> <span className="nav-links-text">Officer Queue</span>
+            </Link>
+          )}
+
+          {user.role === 'worker' && (
+            <Link to="/worker" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}>
+              <Wrench size={16} /> <span className="nav-links-text">My Tasks</span>
             </Link>
           )}
 

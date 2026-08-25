@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Shield, ArrowRight, UserCheck, ShieldAlert, Briefcase } from 'lucide-react';
+import { Shield, ArrowRight, UserCheck, ShieldAlert, Briefcase, Wrench } from 'lucide-react';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -18,6 +18,7 @@ export const LoginPage = () => {
       if (data.user.role === 'citizen') navigate('/citizen');
       else if (data.user.role === 'officer') navigate('/officer');
       else if (data.user.role === 'admin') navigate('/admin');
+      else if (data.user.role === 'worker') navigate('/worker');
       else navigate('/');
     } catch (err) {
       setError(err.message || 'Login failed');
@@ -107,6 +108,13 @@ export const LoginPage = () => {
               style={{ width: '100%', justifyContent: 'flex-start', fontSize: '0.85rem' }}
             >
               <Briefcase size={16} color="#0f172a" /> Officer Demo (Roads Dept)
+            </button>
+            <button
+              onClick={() => handleLogin('worker.roads@civicflow.org')}
+              className="btn btn-secondary"
+              style={{ width: '100%', justifyContent: 'flex-start', fontSize: '0.85rem' }}
+            >
+              <Wrench size={16} color="#0f172a" /> Field Worker Demo (Ramesh Kumar)
             </button>
             <button
               onClick={() => handleLogin('admin@civicflow.org')}

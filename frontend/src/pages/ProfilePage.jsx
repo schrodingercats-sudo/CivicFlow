@@ -32,7 +32,7 @@ export const ProfilePage = () => {
   return (
     <div style={{ maxWidth: '680px', margin: '1.5rem auto' }}>
       <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <Link to={user.role === 'admin' ? '/admin' : user.role === 'officer' ? '/officer' : '/citizen'} className="btn btn-secondary" style={{ padding: '0.5rem 0.85rem' }}>
+        <Link to={user.role === 'admin' ? '/admin' : user.role === 'officer' ? '/officer' : user.role === 'worker' ? '/worker' : '/citizen'} className="btn btn-secondary" style={{ padding: '0.5rem 0.85rem' }}>
           <ArrowLeft size={16} /> Back to Dashboard
         </Link>
       </div>

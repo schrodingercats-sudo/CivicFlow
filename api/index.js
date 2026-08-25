@@ -155,7 +155,7 @@ app.get('/api/v1/complaints/:id', async (req, res) => {
 });
 
 app.post('/api/v1/complaints', requireAuth, async (req, res) => {
-  const { title, description, category, location_text, address, latitude, longitude, image_base64, image_url } = req.body;
+  const { title, description, category, priority, location_text, address, latitude, longitude, image_base64, image_url, geo_image_url } = req.body;
   if (!title || !description || !category) return fail(res, 400, 'title, description, category are required');
 
   // Auto-assign department by category code
@@ -177,15 +177,15 @@ app.post('/api/v1/complaints', requireAuth, async (req, res) => {
       title,
       description,
       category,
-      // address, latitude, longitude are NOT NULL in DB — provide defaults if missing
       address: address || location_text || 'Location not specified',
       latitude: parseFloat(latitude) || 0,
       longitude: parseFloat(longitude) || 0,
       image_url: image_url || image_base64 || null,
+      geo_image_url: geo_image_url || null,
       department_id,
-      status: 'submitted',    // ✅ valid enum: submitted|under_review|assigned|in_progress|resolved|closed|rejected|withdrawn
+      status: 'submitted',
       ai_status: 'pending',
-      priority: 'medium'
+      priority: priority || 'medium'
     }])
     .select('*, cf_users!cf_complaints_citizen_id_fkey(name, email), cf_departments(name, code)')
     .single();
@@ -424,6 +424,149 @@ app.get('/api/v1/analytics/department-performance', requireAuth, async (req, res
   });
 
   return ok(res, 200, { data: result }, 'Department performance fetched');
+});
+
+// ── Worker Routes ─────────────────────────────────────────────────────────────
+app.get('/api/v1/worker/tasks', requireAuth, async (req, res) => {
+  if (req.user.role !== 'worker') return fail(res, 403, 'Forbidden');
+  const { status } = req.query;
+
+  let query = supabase.from('cf_complaints')
+    .select('*, cf_departments(name, code), cf_users!cf_complaints_citizen_id_fkey(name, email)')
+    .eq('assigned_worker_id', req.user.id);
+
+  if (status) query = query.eq('status', status);
+  query = query.order('created_at', { ascending: false });
+
+  const { data, error } = await query;
+  if (error) return fail(res, 500, error.message);
+  return ok(res, 200, { tasks: data || [] }, 'Worker tasks fetched');
+});
+
+app.post('/api/v1/worker/tasks/:id/update', requireAuth, async (req, res) => {
+  if (req.user.role !== 'worker') return fail(res, 403, 'Forbidden');
+  const { update_type, remarks, proof_image_url, geo_image_url, latitude, longitude } = req.body;
+  if (!update_type || !remarks) return fail(res, 400, 'update_type and remarks are required');
+
+  // Verify this task is assigned to this worker
+  const { data: complaint } = await supabase.from('cf_complaints')
+    .select('id, title, citizen_id, assigned_worker_id, status')
+    .eq('id', req.params.id).single();
+
+  if (!complaint) return fail(res, 404, 'Task not found');
+  if (complaint.assigned_worker_id !== req.user.id) return fail(res, 403, 'This task is not assigned to you');
+
+  // Insert worker update
+  const { data, error } = await supabase.from('cf_worker_updates').insert([{
+    complaint_id: req.params.id,
+    worker_id: req.user.id,
+    update_type,
+    remarks,
+    proof_image_url: proof_image_url || null,
+    geo_image_url: geo_image_url || null,
+    latitude: latitude ? parseFloat(latitude) : null,
+    longitude: longitude ? parseFloat(longitude) : null
+  }]).select('*').single();
+
+  if (error) return fail(res, 500, `Update failed: ${error.message}`);
+
+  // If worker marks completed, update complaint status to resolved
+  if (update_type === 'completed') {
+    await supabase.from('cf_complaints')
+      .update({ status: 'resolved', updated_at: new Date().toISOString() })
+      .eq('id', req.params.id);
+
+    await supabase.from('cf_complaint_updates').insert([{
+      complaint_id: req.params.id,
+      updated_by: req.user.id,
+      old_status: complaint.status,
+      new_status: 'resolved',
+      remarks: `Work completed by field worker: ${remarks}`,
+      proof_image_url: proof_image_url || null
+    }]);
+
+    // Notify citizen
+    if (complaint.citizen_id) {
+      await supabase.from('cf_notifications').insert([{
+        user_id: complaint.citizen_id,
+        title: 'Complaint Resolved',
+        message: `Your complaint "${complaint.title}" has been resolved by field worker.`,
+        link_url: `/complaint/${req.params.id}`
+      }]);
+    }
+  } else if (update_type === 'accepted' || update_type === 'in_progress') {
+    // Update complaint status to in_progress
+    const newStatus = 'in_progress';
+    await supabase.from('cf_complaints')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', req.params.id);
+
+    await supabase.from('cf_complaint_updates').insert([{
+      complaint_id: req.params.id,
+      updated_by: req.user.id,
+      old_status: complaint.status,
+      new_status: newStatus,
+      remarks: `Worker update (${update_type}): ${remarks}`
+    }]);
+  }
+
+  return ok(res, 201, { update: data }, 'Worker update submitted');
+});
+
+app.get('/api/v1/complaints/:id/worker-updates', requireAuth, async (req, res) => {
+  const { data, error } = await supabase.from('cf_worker_updates')
+    .select('*, worker:cf_users!cf_worker_updates_worker_id_fkey(name, role)')
+    .eq('complaint_id', req.params.id)
+    .order('created_at', { ascending: true });
+
+  if (error) return fail(res, 500, error.message);
+  return ok(res, 200, { updates: data || [] }, 'Worker updates fetched');
+});
+
+app.patch('/api/v1/complaints/:id/assign-worker', requireAuth, async (req, res) => {
+  if (!['admin', 'officer'].includes(req.user.role)) return fail(res, 403, 'Forbidden');
+  const { worker_id } = req.body;
+  if (!worker_id) return fail(res, 400, 'worker_id is required');
+
+  const { data: complaint } = await supabase.from('cf_complaints')
+    .select('id, title, status').eq('id', req.params.id).single();
+  if (!complaint) return fail(res, 404, 'Complaint not found');
+
+  const { data, error } = await supabase.from('cf_complaints')
+    .update({ assigned_worker_id: worker_id, status: 'assigned', updated_at: new Date().toISOString() })
+    .eq('id', req.params.id).select().single();
+
+  if (error) return fail(res, 500, `Assignment failed: ${error.message}`);
+
+  // Log audit
+  await supabase.from('cf_complaint_updates').insert([{
+    complaint_id: req.params.id,
+    updated_by: req.user.id,
+    old_status: complaint.status,
+    new_status: 'assigned',
+    remarks: 'Task assigned to field worker for dispatch.'
+  }]);
+
+  // Notify worker
+  await supabase.from('cf_notifications').insert([{
+    user_id: worker_id,
+    title: 'New Task Assigned',
+    message: `You have been assigned to: "${complaint.title}". Check your dashboard.`,
+    link_url: `/complaint/${req.params.id}`
+  }]);
+
+  return ok(res, 200, { complaint: data }, 'Worker assigned');
+});
+
+app.get('/api/v1/workers', requireAuth, async (req, res) => {
+  if (!['admin', 'officer'].includes(req.user.role)) return fail(res, 403, 'Forbidden');
+  let query = supabase.from('cf_users').select('id, name, email, phone, department_id, cf_departments(name, code)').eq('role', 'worker');
+  if (req.user.role === 'officer' && req.user.department_id) {
+    query = query.eq('department_id', req.user.department_id);
+  }
+  const { data, error } = await query;
+  if (error) return fail(res, 500, error.message);
+  return ok(res, 200, { workers: data || [] }, 'Workers list fetched');
 });
 
 // ── Notifications ─────────────────────────────────────────────────────────────
