@@ -48,7 +48,7 @@ export const WorkerDashboard = () => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const res = await apiRequest('GET', '/worker/tasks');
+      const res = await apiRequest('/worker/tasks');
       setTasks(res.tasks || []);
     } catch (error) {
       console.error('Error fetching tasks', error);
@@ -70,12 +70,15 @@ export const WorkerDashboard = () => {
     
     try {
       setUpdating(true);
-      await apiRequest('POST', `/worker/tasks/${selectedTask.id}/update`, {
-        update_type: updateType,
-        remarks,
-        proof_image_url: proofImage,
-        latitude: location.latitude,
-        longitude: location.longitude
+      await apiRequest(`/worker/tasks/${selectedTask.id}/update`, {
+        method: 'POST',
+        body: JSON.stringify({
+          update_type: updateType,
+          remarks,
+          proof_image_url: proofImage,
+          latitude: location.latitude,
+          longitude: location.longitude
+        })
       });
       // Refresh tasks and close modal
       await fetchTasks();
@@ -192,7 +195,7 @@ export const WorkerDashboard = () => {
           {filteredTasks.map(task => (
             <div key={task.id} className="clay-card" style={{ display: 'flex', padding: '1.5rem', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ width: '150px', height: '100px', flexShrink: 0, borderRadius: '0.5rem', overflow: 'hidden' }}>
-                <ComplaintImage url={task.image_url} alt="Task Image" />
+                <ComplaintImage src={task.image_url} alt={task.title} title={task.title} category={task.category} />
               </div>
               
               <div style={{ flex: 1, minWidth: '250px' }}>
