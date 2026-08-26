@@ -16,6 +16,35 @@ const JWT_SECRET = process.env.JWT_SECRET || 'civicflow-super-secret-jwt-key-202
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const NTFY_SECRET = process.env.NTFY_SECRET || 'x9k2m7p4';
+
+// Push real-time notification to ntfy.sh topics
+const pushNtfy = async (userId, title, message) => {
+  const topic = `civicflow-citizen-${userId}-${NTFY_SECRET}`;
+  try {
+    await fetch(`https://ntfy.sh/${topic}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, title, message, tags: ['bell'] })
+    });
+  } catch (e) { /* ntfy push is best-effort */ }
+};
+
+const pushNtfyToRole = async (role, title, message, departmentId) => {
+  let topic;
+  if (role === 'admin') topic = `civicflow-admin-${NTFY_SECRET}`;
+  else if (role === 'officer' && departmentId) topic = `civicflow-officer-${departmentId}-${NTFY_SECRET}`;
+  else if (role === 'worker' && departmentId) topic = `civicflow-worker-${departmentId}-${NTFY_SECRET}`;
+  else return;
+  try {
+    await fetch(`https://ntfy.sh/${topic}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, title, message, tags: ['bell'] })
+    });
+  } catch (e) { /* best-effort */ }
+};
+
 const generateToken = (user) =>
   jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
@@ -208,6 +237,7 @@ app.post('/api/v1/complaints', requireAuth, async (req, res) => {
     message: `Your complaint "${title}" has been submitted and is being processed.`,
     link_url: `/complaint/${data.id}`
   }]);
+  pushNtfy(req.user.id, 'Complaint Registered', `Your complaint "${title}" has been submitted.`);
 
   // Notify all admins about new complaint
   const { data: admins } = await supabase.from('cf_users').select('id').eq('role', 'admin');
@@ -220,6 +250,8 @@ app.post('/api/v1/complaints', requireAuth, async (req, res) => {
         link_url: `/complaint/${data.id}`
       }))
     );
+    admins.forEach(a => pushNtfy(a.id, 'New Complaint Filed', `New: "${title}" (${category})`));
+    pushNtfyToRole('admin', 'New Complaint Filed', `New: "${title}" (${category})`);
   }
 
   // Notify officers in the assigned department
@@ -234,6 +266,8 @@ app.post('/api/v1/complaints', requireAuth, async (req, res) => {
           link_url: `/complaint/${data.id}`
         }))
       );
+      officers.forEach(o => pushNtfy(o.id, 'New Complaint Assigned', `"${title}" assigned to your dept.`));
+      pushNtfyToRole('officer', 'New Complaint Assigned', `"${title}" assigned`, department_id);
     }
   }
 
@@ -271,25 +305,30 @@ app.patch('/api/v1/complaints/:id/status', requireAuth, async (req, res) => {
 
   // Create notification for the citizen who filed the complaint
   if (existing?.citizen_id) {
+    const statusMsg = `Your complaint "${existing.title || 'Complaint'}" status was updated to ${status.replace(/_/g, ' ')}.`;
     await supabase.from('cf_notifications').insert([{
       user_id: existing.citizen_id,
       title: `Status Update: ${status.replace(/_/g, ' ').toUpperCase()}`,
-      message: `Your complaint "${existing.title || 'Complaint'}" status was updated to ${status.replace(/_/g, ' ')}.`,
+      message: statusMsg,
       link_url: `/complaint/${req.params.id}`
     }]);
+    pushNtfy(existing.citizen_id, 'Status Update', statusMsg);
   }
 
   // Also notify admins
   const { data: admins } = await supabase.from('cf_users').select('id').eq('role', 'admin');
   if (admins?.length) {
+    const adminMsg = `"${existing?.title || 'Complaint'}" status changed to ${status.replace(/_/g, ' ')}.`;
     await supabase.from('cf_notifications').insert(
       admins.map(a => ({
         user_id: a.id,
         title: 'Complaint Status Changed',
-        message: `"${existing?.title || 'Complaint'}" status changed to ${status.replace(/_/g, ' ')}.`,
+        message: adminMsg,
         link_url: `/complaint/${req.params.id}`
       }))
     );
+    admins.forEach(a => pushNtfy(a.id, 'Complaint Status Changed', adminMsg));
+    pushNtfyToRole('admin', 'Complaint Status Changed', adminMsg);
   }
 
   return ok(res, 200, { complaint: data }, 'Status updated');
@@ -487,12 +526,14 @@ app.post('/api/v1/worker/tasks/:id/update', requireAuth, async (req, res) => {
 
     // Notify citizen
     if (complaint.citizen_id) {
+      const resolveMsg = `Your complaint "${complaint.title}" has been resolved by field worker.`;
       await supabase.from('cf_notifications').insert([{
         user_id: complaint.citizen_id,
         title: 'Complaint Resolved',
-        message: `Your complaint "${complaint.title}" has been resolved by field worker.`,
+        message: resolveMsg,
         link_url: `/complaint/${req.params.id}`
       }]);
+      pushNtfy(complaint.citizen_id, 'Complaint Resolved', resolveMsg);
     }
   } else if (update_type === 'accepted' || update_type === 'in_progress') {
     // Update complaint status to in_progress
@@ -548,12 +589,14 @@ app.patch('/api/v1/complaints/:id/assign-worker', requireAuth, async (req, res) 
   }]);
 
   // Notify worker
+  const assignMsg = `You have been assigned to: "${complaint.title}". Check your dashboard.`;
   await supabase.from('cf_notifications').insert([{
     user_id: worker_id,
     title: 'New Task Assigned',
-    message: `You have been assigned to: "${complaint.title}". Check your dashboard.`,
+    message: assignMsg,
     link_url: `/complaint/${req.params.id}`
   }]);
+  pushNtfy(worker_id, 'New Task Assigned', assignMsg);
 
   return ok(res, 200, { complaint: data }, 'Worker assigned');
 });
@@ -585,10 +628,9 @@ app.get('/api/v1/notifications', requireAuth, async (req, res) => {
 });
 
 app.get('/api/v1/notifications/ntfy-topics', requireAuth, (req, res) => {
-  const NTFY_SECRET = process.env.NTFY_SECRET || 'x9k2m7p4';
   const topics = [];
 
-  // Personal citizen topic for everyone
+  // Personal topic for everyone (receives direct notifications)
   topics.push(`civicflow-citizen-${req.user.id}-${NTFY_SECRET}`);
 
   if (req.user.role === 'admin') {
@@ -597,6 +639,10 @@ app.get('/api/v1/notifications/ntfy-topics', requireAuth, (req, res) => {
 
   if (req.user.role === 'officer' && req.user.department_id) {
     topics.push(`civicflow-officer-${req.user.department_id}-${NTFY_SECRET}`);
+  }
+
+  if (req.user.role === 'worker' && req.user.department_id) {
+    topics.push(`civicflow-worker-${req.user.department_id}-${NTFY_SECRET}`);
   }
 
   return ok(res, 200, { topics }, 'ntfy topics retrieved');

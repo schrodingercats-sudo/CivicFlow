@@ -34,10 +34,10 @@ export const NotificationBell = () => {
     }
   }, [ntfyMessages.length]);
 
-  // Initial load + fallback polling (60s instead of 10s since ntfy handles real-time)
+  // Initial load + fallback polling (15s — ntfy handles real-time but this catches any gaps)
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000);
+    const interval = setInterval(fetchNotifications, 15000);
     return () => clearInterval(interval);
   }, []);
 
