@@ -5,14 +5,24 @@ import jwt from 'jsonwebtoken';
 
 const app = express();
 
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  const staticAllowed = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://civicflow-app.vercel.app',
+    process.env.FRONTEND_URL
+  ].filter(Boolean);
+  if (staticAllowed.includes(origin)) return true;
+  const lower = origin.toLowerCase();
+  if (lower.endsWith('.vercel.app')) return true;
+  if (lower.startsWith('http://localhost:') || lower.startsWith('http://127.0.0.1:')) return true;
+  return staticAllowed.some(o => lower.startsWith(o.replace(/\/$/, '').toLowerCase()));
+};
+
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowed = [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      process.env.FRONTEND_URL
-    ].filter(Boolean);
-    if (!origin || allowed.includes(origin) || allowed.some(o => origin.startsWith(o?.replace(/\/$/, '')))) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS: ' + origin));
@@ -20,9 +30,12 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization']
+  allowedHeaders: ['Content-Type','Authorization','Accept','Origin','X-Requested-With'],
+  preflightContinue: true,
+  optionsSuccessStatus: 204
 };
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
