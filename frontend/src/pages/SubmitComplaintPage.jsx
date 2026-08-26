@@ -67,7 +67,40 @@ export const SubmitComplaintPage = () => {
     handleAutoLocate();
   }, []);
 
-  const handleAutoLocate = () => {
+  const reverseGeocode = async (lat, lng) => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=en`;
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'CivicFlow-Complaint-App/1.0' }
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data;
+    } catch (e) {
+      console.warn('Reverse geocoding failed:', e);
+      return null;
+    }
+  };
+
+  const buildAddressFromGeo = (geoData, lat, lng) => {
+    if (!geoData || !geoData.address) return `GPS Location (${lat}, ${lng})`;
+    const a = geoData.address;
+    const parts = [];
+    if (a.road) parts.push(a.road);
+    if (a.suburb) parts.push(a.suburb);
+    if (a.neighbourhood && !a.suburb) parts.push(a.neighbourhood);
+    if (a.city) parts.push(a.city);
+    if (a.town && !a.city) parts.push(a.town);
+    if (a.village && !a.town && !a.city) parts.push(a.village);
+    if (a.county && !a.city && !a.town) parts.push(a.county);
+    if (a.state) parts.push(a.state);
+    if (a.postcode) parts.push(a.postcode);
+    if (a.country) parts.push(a.country);
+    if (parts.length === 0) return geoData.display_name || `GPS Location (${lat}, ${lng})`;
+    return parts.join(', ');
+  };
+
+  const handleAutoLocate = async () => {
     if (!navigator.geolocation) {
       setError('Geolocation GPS is not supported by your browser');
       return;
@@ -77,14 +110,18 @@ export const SubmitComplaintPage = () => {
     setGpsSuccess(false);
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const lat = position.coords.latitude.toFixed(6);
         const lng = position.coords.longitude.toFixed(6);
+        const geoData = await reverseGeocode(lat, lng);
+        const realAddress = buildAddressFromGeo(geoData, lat, lng);
         setFormData(prev => ({
           ...prev,
           latitude: lat,
           longitude: lng,
-          address: prev.address || `GPS Location (${lat}, ${lng}), Local District`
+          address: prev.address && prev.address.length > 0 && !prev.address.startsWith('GPS Location')
+            ? prev.address
+            : realAddress
         }));
         setLocating(false);
         setGpsSuccess(true);
@@ -139,8 +176,8 @@ export const SubmitComplaintPage = () => {
   const hasGPS = !!formData.latitude && !!formData.longitude;
 
   return (
-    <div style={{ maxWidth: '720px', margin: '1rem auto' }}>
-      <div className="clay-card" style={{ padding: '2.5rem' }}>
+    <div style={{ maxWidth: '720px', width: '100%', margin: '1rem auto', overflow: 'hidden' }}>
+      <div className="clay-card" style={{ padding: '2.5rem', maxWidth: '100%', overflow: 'hidden' }}>
         <h2 style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#0f172a', marginBottom: '0.25rem' }}>
           Report Civic Complaint
         </h2>
@@ -330,20 +367,20 @@ export const SubmitComplaintPage = () => {
 
             {hasPhoto && (
               <div>
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-                  <div style={{ flex: '1 1 200px' }}>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+                  <div style={{ flex: '1 1 200px', minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <ImageIcon size={13} /> Original Photo
                     </div>
                     <img
                       src={previewImage}
                       alt="Original"
-                      style={{ width: '100%', maxHeight: '220px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #cbd5e1' }}
+                      style={{ width: '100%', maxWidth: '100%', maxHeight: '220px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #cbd5e1', display: 'block' }}
                     />
                   </div>
 
                   {hasGPS && (
-                    <div style={{ flex: '1 1 200px' }}>
+                    <div style={{ flex: '1 1 200px', minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
                       <div style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 700, marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                         <CheckCircle2 size={13} /> GeoCam Verified
                       </div>

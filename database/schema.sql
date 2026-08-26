@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'cf_user_role') THEN
-        CREATE TYPE cf_user_role AS ENUM ('citizen', 'officer', 'admin');
+        CREATE TYPE cf_user_role AS ENUM ('citizen', 'officer', 'admin', 'worker');
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'cf_complaint_category') THEN
         CREATE TYPE cf_complaint_category AS ENUM (
@@ -34,7 +34,8 @@ BEGIN
             'in_progress',
             'resolved',
             'closed',
-            'rejected'
+            'rejected',
+            'withdrawn'
         );
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'cf_ai_processing_status') THEN

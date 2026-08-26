@@ -19,6 +19,10 @@ export const getNtfyTopic = async (req, res, next) => {
       topics.push(ntfyTopics.officer(department_id));
     }
 
+    if (role === 'worker' && department_id) {
+      topics.push(ntfyTopics.worker(department_id));
+    }
+
     return res.status(200).json(
       new ApiResponse(200, { topics }, 'ntfy topics retrieved')
     );

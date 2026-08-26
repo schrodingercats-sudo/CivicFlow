@@ -3,9 +3,10 @@ import { supabase } from '../config/supabase.js';
 
 // Random suffix topics for security (public ntfy.sh)
 const TOPICS = {
-  admin: `civicflow-admin-${process.env.NTFY_SECRET || 'x9k2m7p4'}`,
-  officer: (deptId) => `civicflow-officer-${deptId || 'all'}-${process.env.NTFY_SECRET || 'x9k2m7p4'}`,
-  citizen: (userId) => `civicflow-citizen-${userId}-${process.env.NTFY_SECRET || 'x9k2m7p4'}`
+  admin: `civicflow-admin-${process.env.NTFY_SECRET}`,
+  officer: (deptId) => `civicflow-officer-${deptId || 'all'}-${process.env.NTFY_SECRET}`,
+  citizen: (userId) => `civicflow-citizen-${userId}-${process.env.NTFY_SECRET}`,
+  worker: (deptId) => `civicflow-worker-${deptId || 'all'}-${process.env.NTFY_SECRET}`
 };
 
 export const ntfyTopics = TOPICS;
@@ -48,6 +49,9 @@ export const notifyOfficer = (deptId, title, message, priority = 3) =>
 
 export const notifyCitizen = (userId, title, message, priority = 3) =>
   publishNtfy(TOPICS.citizen(userId), title, message, priority, ['civicflow', 'citizen']);
+
+export const notifyWorker = (deptId, title, message, priority = 3) =>
+  publishNtfy(TOPICS.worker(deptId), title, message, priority, ['civicflow', 'worker']);
 
 /**
  * Unified notification helper that creates DB records (cf_notifications) AND triggers ntfy SSE push
@@ -114,4 +118,28 @@ export const notifyCitizenSystem = async (userId, title, message, linkUrl = '/ci
   }
 
   return notifyCitizen(userId, title, message, priority);
+};
+
+export const notifyWorkersSystem = async (deptId, title, message, linkUrl = '/worker', priority = 3) => {
+  try {
+    let query = supabase.from('cf_users').select('id').eq('role', 'worker');
+    if (deptId) {
+      query = query.eq('department_id', deptId);
+    }
+    const { data: workers } = await query;
+
+    if (workers && workers.length > 0) {
+      const inserts = workers.map(w => ({
+        user_id: w.id,
+        title,
+        message,
+        link_url: linkUrl
+      }));
+      await supabase.from('cf_notifications').insert(inserts);
+    }
+  } catch (err) {
+    logger.warn(`Failed to insert worker notifications: ${err.message}`);
+  }
+
+  return notifyWorker(deptId, title, message, priority);
 };

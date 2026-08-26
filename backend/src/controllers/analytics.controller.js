@@ -17,9 +17,9 @@ export const getAdminStats = async (req, res, next) => {
 
     const totalComplaints = complaints.length;
     const submitted = complaints.filter(c => c.status === 'submitted').length;
-    const inProgress = complaints.filter(c => c.status === 'in_progress' || c.status === 'under_review' || c.status === 'assigned').length;
+    const inProgress = complaints.filter(c => ['submitted', 'under_review', 'assigned', 'in_progress'].includes(c.status)).length;
     const resolved = complaints.filter(c => c.status === 'resolved' || c.status === 'closed').length;
-    const rejected = complaints.filter(c => c.status === 'rejected').length;
+    const rejected = complaints.filter(c => c.status === 'rejected' || c.status === 'withdrawn').length;
 
     const resolutionRate = totalComplaints > 0 ? Math.round((resolved / totalComplaints) * 100) : 0;
 
@@ -45,19 +45,16 @@ export const getAdminStats = async (req, res, next) => {
 
     return res.status(200).json(
       new ApiResponse(200, {
-        summary: {
-          totalComplaints,
-          submitted,
-          inProgress,
-          resolved,
-          rejected,
-          resolutionRate,
-          totalUsers: users?.length || 0,
-          totalOfficers: users?.filter(u => u.role === 'officer').length || 0,
-          totalDepartments: departments?.length || 0
-        },
-        categoryDistribution: categoryCounts,
-        departmentStats
+        total_complaints: totalComplaints,
+        pending_action: inProgress,
+        resolved_closed: resolved,
+        critical_escalations: rejected,
+        resolution_rate: resolutionRate,
+        total_users: users?.length || 0,
+        total_officers: users?.filter(u => u.role === 'officer').length || 0,
+        total_departments: departments?.length || 0,
+        category_distribution: categoryCounts,
+        department_stats: departmentStats
       }, 'Admin analytics metrics fetched successfully')
     );
   } catch (error) {

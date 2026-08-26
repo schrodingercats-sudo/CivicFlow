@@ -13,7 +13,7 @@ export const authenticate = async (req, res, next) => {
     let decoded;
 
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'civicflow-super-secret-jwt-key-2026');
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
       throw new ApiError(401, 'Unauthorized: Invalid or expired token');
     }
@@ -23,6 +23,10 @@ export const authenticate = async (req, res, next) => {
       .select('*, cf_departments(name, code)')
       .eq('id', decoded.id)
       .single();
+
+    if (user && user.active === false) {
+      throw new ApiError(403, 'Account is deactivated. Contact your administrator.');
+    }
 
     if (error || !user) {
       throw new ApiError(401, 'Unauthorized: User account not found');

@@ -6,7 +6,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { ComplaintImage } from '../components/common/ComplaintImage';
 import { ComplaintMap } from '../components/common/ComplaintMap';
-import { ArrowLeft, MapPin, Calendar, Building2, User, Star, Clock, Sparkles, XCircle } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Building2, User, Star, Clock, Sparkles, XCircle, CheckCircle2 } from 'lucide-react';
 
 export const ComplaintDetailPage = () => {
   const { id } = useParams();
@@ -124,6 +124,28 @@ export const ComplaintDetailPage = () => {
                   alt={complaint.title}
                   category={complaint.category}
                   style={{ width: '100%', maxHeight: '380px' }}
+                />
+              </div>
+            )}
+
+            {complaint.geo_image_url && (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '0.85rem', color: '#166534', marginBottom: '0.5rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <CheckCircle2 size={14} /> GeoCam Verified Photo
+                </div>
+                <img
+                  src={complaint.geo_image_url}
+                  alt="GeoCam Verified"
+                  style={{
+                    width: '100%',
+                    maxWidth: '100%',
+                    maxHeight: '380px',
+                    objectFit: 'cover',
+                    borderRadius: '10px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                    display: 'block'
+                  }}
                 />
               </div>
             )}

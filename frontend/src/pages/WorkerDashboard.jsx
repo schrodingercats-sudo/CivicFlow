@@ -58,8 +58,8 @@ export const WorkerDashboard = () => {
   };
 
   const filteredTasks = tasks.filter(task => {
-    if (filter === 'New') return ['submitted', 'assigned'].includes(task.status);
-    if (filter === 'Active') return ['accepted', 'en_route', 'on_site', 'in_progress'].includes(task.status);
+    if (filter === 'New') return ['submitted', 'under_review', 'assigned'].includes(task.status);
+    if (filter === 'Active') return ['in_progress'].includes(task.status);
     if (filter === 'Completed') return ['resolved', 'closed'].includes(task.status);
     return true;
   });
@@ -124,8 +124,8 @@ export const WorkerDashboard = () => {
   const getMetrics = () => {
     return {
       assigned: tasks.filter(t => t.status === 'assigned').length,
-      accepted: tasks.filter(t => ['accepted', 'en_route'].includes(t.status)).length,
-      inProgress: tasks.filter(t => ['on_site', 'in_progress'].includes(t.status)).length,
+      accepted: tasks.filter(t => ['submitted', 'under_review'].includes(t.status)).length,
+      inProgress: tasks.filter(t => t.status === 'in_progress').length,
       completed: tasks.filter(t => ['resolved', 'closed'].includes(t.status)).length
     };
   };

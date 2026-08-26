@@ -64,7 +64,7 @@ export const CitizenDashboard = () => {
   };
 
   const totalCount = complaints.length;
-  const inProgressCount = complaints.filter(c => c.status === 'in_progress' || c.status === 'submitted' || c.status === 'assigned').length;
+  const inProgressCount = complaints.filter(c => ['in_progress', 'submitted', 'assigned', 'under_review'].includes(c.status)).length;
   const resolvedCount = complaints.filter(c => c.status === 'resolved').length;
   const withdrawnCount = complaints.filter(c => c.status === 'withdrawn').length;
 

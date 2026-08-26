@@ -3,7 +3,7 @@ import { supabase } from '../config/supabase.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 import { ApiError } from '../utils/apiError.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'civicflow-super-secret-jwt-key-2026';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -15,7 +15,31 @@ const generateToken = (user) => {
 
 export const register = async (req, res, next) => {
   try {
-    const { name, email, phone, role = 'citizen', department_id } = req.body;
+    let { name, email, phone, role = 'citizen', department_id } = req.body;
+
+    email = email?.trim().toLowerCase();
+    role = role?.toLowerCase() || 'citizen';
+
+    let callerRole = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const { data: callerUser } = await supabase
+          .from('cf_users')
+          .select('role')
+          .eq('id', decoded.id)
+          .single();
+        callerRole = callerUser?.role || null;
+      } catch (err) {
+        callerRole = null;
+      }
+    }
+
+    if (callerRole !== 'admin') {
+      role = 'citizen';
+    }
 
     if (!name || !email) {
       throw new ApiError(400, 'Name and Email are required');
@@ -63,7 +87,8 @@ export const register = async (req, res, next) => {
 
 export const login = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    let { email } = req.body;
+    email = email?.trim().toLowerCase();
 
     if (!email) {
       throw new ApiError(400, 'Email is required');
@@ -74,6 +99,10 @@ export const login = async (req, res, next) => {
       .select('*, cf_departments(name, code)')
       .eq('email', email)
       .single();
+
+    if (user && user.active === false) {
+      throw new ApiError(403, 'Account is deactivated. Contact your administrator.');
+    }
 
     if (error || !user) {
       throw new ApiError(404, 'User not found. Please check your email or register.');

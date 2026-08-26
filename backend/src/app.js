@@ -7,13 +7,32 @@ import departmentRoutes from './routes/department.routes.js';
 import complaintRoutes from './routes/complaint.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import workerRoutes from './routes/worker.routes.js';
+import workersRoutes from './routes/workers.routes.js';
 import { errorHandler } from './middleware/error.middleware.js';
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors());
+const corsOptions = {
+  origin: (origin, callback) => {
+    const allowed = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
+    if (!origin || allowed.includes(origin) || allowed.some(o => origin.startsWith(o?.replace(/\/$/, '')))) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS: ' + origin));
+    }
+  },
+  credentials: true,
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization']
+};
+app.use(cors(corsOptions));
 
 // Increase JSON and URL-encoded body parser limits for Base64 image uploads
 app.use(express.json({ limit: '10mb' }));
@@ -26,6 +45,8 @@ app.use('/api/v1/departments', departmentRoutes);
 app.use('/api/v1/complaints', complaintRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/workers', workersRoutes);
+app.use('/api/v1/worker', workerRoutes);
 
 // 404 Catch-All for undefined API routes
 app.use('/api/*', (req, res) => {

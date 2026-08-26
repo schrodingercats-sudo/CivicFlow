@@ -1,8 +1,9 @@
 import { supabase } from '../config/supabase.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 import { ApiError } from '../utils/apiError.js';
+import { logger } from '../utils/logger.js';
 import { processComplaintAsync } from '../services/aiProcessor.js';
-import { notifyAdminsSystem, notifyOfficersSystem, notifyCitizenSystem } from '../services/ntfy.service.js';
+import { notifyAdminsSystem, notifyOfficersSystem, notifyCitizenSystem, ntfyTopics, publishNtfy } from '../services/ntfy.service.js';
 
 export const createComplaint = async (req, res, next) => {
   try {
@@ -15,6 +16,7 @@ export const createComplaint = async (req, res, next) => {
       longitude,
       address,
       image_url,
+      geo_image_url,
       department_id
     } = req.body;
 
@@ -59,6 +61,7 @@ export const createComplaint = async (req, res, next) => {
           longitude,
           address,
           image_url: image_url || null,
+          geo_image_url: geo_image_url || null,
           citizen_id: req.user.id,
           department_id: assignedDeptId
         }
@@ -80,7 +83,8 @@ export const createComplaint = async (req, res, next) => {
       }
     ]);
 
-    processComplaintAsync(complaint.id, title, description);
+    processComplaintAsync(complaint.id, title, description)
+      .catch(err => logger.error(`Unhandled rejection in AI processor for complaint ${complaint.id}: ${err.message}`));
 
     // Notify admins and assigned officers (DB records + ntfy SSE push)
     await notifyAdminsSystem('New Complaint Submitted', `"${title}" at ${address || 'Unknown Location'}`, `/complaint/${complaint.id}`, 4);
@@ -114,10 +118,12 @@ export const getComplaints = async (req, res, next) => {
       query = query.eq('citizen_id', req.user.id);
     } else if (req.user.role === 'officer') {
       if (req.user.department_id) {
-        query = query.eq('department_id', req.user.department_id);
+        query = query.or(`department_id.eq.${req.user.department_id},assigned_officer_id.eq.${req.user.id}`);
       } else {
         query = query.eq('assigned_officer_id', req.user.id);
       }
+    } else if (req.user.role === 'worker') {
+      query = query.eq('assigned_worker_id', req.user.id);
     }
 
     if (status) query = query.eq('status', status);
@@ -159,6 +165,16 @@ export const getComplaintById = async (req, res, next) => {
     if (req.user.role === 'citizen' && complaint.citizen_id !== req.user.id) {
       throw new ApiError(403, 'Forbidden: You do not have permission to view this complaint');
     }
+    if (req.user.role === 'officer') {
+      const ownsOfficer = complaint.assigned_officer_id === req.user.id;
+      const inDept = complaint.department_id === req.user.department_id;
+      if (!ownsOfficer && !inDept) {
+        throw new ApiError(403, 'Forbidden: You do not have permission to view this complaint');
+      }
+    }
+    if (req.user.role === 'worker' && complaint.assigned_worker_id !== req.user.id) {
+      throw new ApiError(403, 'Forbidden: This task is not assigned to you');
+    }
 
     const { data: timeline } = await supabase
       .from('cf_complaint_updates')
@@ -183,7 +199,7 @@ export const getComplaintById = async (req, res, next) => {
 export const updateComplaintStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    let { status, remarks, proof_image_url, assigned_officer_id, department_id } = req.body;
+    let { status, remarks, proof_image_url, assigned_officer_id, assigned_worker_id, department_id } = req.body;
 
     const { data: existingComplaint, error: fetchErr } = await supabase
       .from('cf_complaints')
@@ -206,14 +222,18 @@ export const updateComplaintStatus = async (req, res, next) => {
       }
     }
 
-    // Automatically reactivate rejected or withdrawn complaints to 'submitted' upon department reassignment
-    if ((existingComplaint.status === 'rejected' || existingComplaint.status === 'withdrawn') && (!status || status === existingComplaint.status)) {
+    // Only auto-reactivate if the department was actually reassigned AND the caller did NOT explicitly supply a different/new status
+    const isStatusExplicitlyChanged = status && status !== existingComplaint.status;
+    if (isDeptChanged && !isStatusExplicitlyChanged && (existingComplaint.status === 'rejected' || existingComplaint.status === 'withdrawn')) {
       status = 'submitted';
     }
 
     if (status) updates.status = status;
     if (assigned_officer_id !== undefined && !isDeptChanged) {
       updates.assigned_officer_id = assigned_officer_id;
+    }
+    if (assigned_worker_id !== undefined) {
+      updates.assigned_worker_id = assigned_worker_id;
     }
 
     const { data: updatedComplaint, error: updateErr } = await supabase
@@ -433,6 +453,96 @@ export const deleteComplaint = async (req, res, next) => {
 
     return res.status(200).json(
       new ApiResponse(200, null, 'Complaint deleted successfully')
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const assignWorkerToComplaint = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { worker_id } = req.body;
+    if (!worker_id) {
+      throw new ApiError(400, 'worker_id is required');
+    }
+
+    const { data: complaint, error: fetchErr } = await supabase
+      .from('cf_complaints')
+      .select('id, title, status, department_id')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !complaint) {
+      throw new ApiError(404, 'Complaint not found');
+    }
+
+    const TERMINAL_STATUSES = ['resolved', 'closed'];
+    const newStatus = TERMINAL_STATUSES.includes(complaint.status) ? complaint.status : 'assigned';
+
+    const { data: updatedComplaint, error: updateErr } = await supabase
+      .from('cf_complaints')
+      .update({ assigned_worker_id: worker_id, status: newStatus })
+      .eq('id', id)
+      .select('*, cf_departments(name, code)')
+      .single();
+
+    if (updateErr) {
+      throw new ApiError(500, `Assignment failed: ${updateErr.message}`);
+    }
+
+    await supabase.from('cf_complaint_updates').insert([{
+      complaint_id: id,
+      updated_by: req.user.id,
+      old_status: complaint.status,
+      new_status: newStatus,
+      remarks: `Worker assigned${complaint.status === newStatus ? ' (status preserved — already ' + newStatus + ')' : ' for dispatch'}.`
+    }]);
+
+    const assignMsg = `You have been assigned to: "${complaint.title}". Check your dashboard.`;
+    try {
+      await supabase.from('cf_notifications').insert([{
+        user_id: worker_id,
+        title: 'New Task Assigned',
+        message: assignMsg,
+        link_url: `/complaint/${id}`
+      }]);
+    } catch (err) {
+      logger.warn(`Failed to insert worker assignment notification: ${err.message}`);
+    }
+
+    const { data: workerUser } = await supabase
+      .from('cf_users')
+      .select('department_id')
+      .eq('id', worker_id)
+      .single();
+    const workerDeptId = workerUser?.department_id || complaint.department_id;
+    publishNtfy(ntfyTopics.worker(workerDeptId), 'New Task Assigned', assignMsg, 4, ['civicflow', 'worker']);
+
+    return res.status(200).json(
+      new ApiResponse(200, { complaint: updatedComplaint }, 'Worker assigned')
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getWorkerUpdatesForComplaint = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { data: updates, error } = await supabase
+      .from('cf_worker_updates')
+      .select('*, worker:cf_users!cf_worker_updates_worker_id_fkey(name, role)')
+      .eq('complaint_id', id)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new ApiError(500, error.message);
+    }
+
+    return res.status(200).json(
+      new ApiResponse(200, { updates: updates || [] }, 'Worker updates fetched')
     );
   } catch (error) {
     next(error);

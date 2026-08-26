@@ -5,18 +5,35 @@ import jwt from 'jsonwebtoken';
 
 const app = express();
 
-app.use(cors());
+const corsOptions = {
+  origin: (origin, callback) => {
+    const allowed = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
+    if (!origin || allowed.includes(origin) || allowed.some(o => origin.startsWith(o?.replace(/\/$/, '')))) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS: ' + origin));
+    }
+  },
+  credentials: true,
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization']
+};
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://enrrsnbfushieufmqmuq.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVucnJzbmJmdXNoaWV1Zm1xbXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MTEyODEsImV4cCI6MjEwMDM4NzI4MX0.HzPvX-FXkGia2Ij53_Jnw_2Nrpzm212qy1HDiWUPUYU';
-const JWT_SECRET = process.env.JWT_SECRET || 'civicflow-super-secret-jwt-key-2026';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const NTFY_SECRET = process.env.NTFY_SECRET || 'x9k2m7p4';
+const NTFY_SECRET = process.env.NTFY_SECRET;
 
 // Push real-time notification to ntfy.sh topics
 const pushNtfy = async (userId, title, message) => {
@@ -66,6 +83,7 @@ const requireAuth = async (req, res, next) => {
       .eq('id', payload.id)
       .single();
     if (!user) return fail(res, 401, 'User not found');
+    if (user.active === false) return fail(res, 403, 'Account is deactivated. Contact your administrator.');
     req.user = user;
     next();
   } catch {
@@ -81,10 +99,12 @@ app.post('/api/v1/auth/login', async (req, res) => {
   const { email } = req.body;
   if (!email) return fail(res, 400, 'Email is required');
 
+  const normalizedEmail = email.trim().toLowerCase();
+
   const { data: user, error } = await supabase
     .from('cf_users')
     .select('*, cf_departments(name, code)')
-    .eq('email', email.trim().toLowerCase())
+    .eq('email', normalizedEmail)
     .single();
 
   if (error || !user) return fail(res, 404, 'User not found. Please check your email or register.');
@@ -98,12 +118,29 @@ app.post('/api/v1/auth/register', async (req, res) => {
   const { name, email, phone, role = 'citizen', department_id } = req.body;
   if (!name || !email) return fail(res, 400, 'Name and Email are required');
 
-  const { data: existing } = await supabase.from('cf_users').select('id').eq('email', email.trim().toLowerCase()).single();
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const authHeader = req.headers.authorization;
+  let callerRole = null;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.slice(7), JWT_SECRET);
+      const { data: callerUser } = await supabase.from('cf_users').select('role').eq('id', decoded.id).single();
+      callerRole = callerUser?.role || null;
+    } catch (_e) { /* invalid token, ignore */ }
+  }
+
+  let finalRole = (role || 'citizen').toLowerCase();
+  if (callerRole !== 'admin') {
+    finalRole = 'citizen';
+  }
+
+  const { data: existing } = await supabase.from('cf_users').select('id').eq('email', normalizedEmail).single();
   if (existing) return fail(res, 409, 'User with this email already exists');
 
   const { data: newUser, error } = await supabase
     .from('cf_users')
-    .insert([{ name, email: email.trim().toLowerCase(), phone: phone || null, role, department_id: department_id || null }])
+    .insert([{ name, email: normalizedEmail, phone: phone || null, role: finalRole, department_id: department_id || null }])
     .select('*, cf_departments(name, code)')
     .single();
 
@@ -132,7 +169,7 @@ app.put('/api/v1/auth/profile', requireAuth, async (req, res) => {
 });
 
 // ── Departments ───────────────────────────────────────────────────────────────
-app.get('/api/v1/departments', async (req, res) => {
+app.get('/api/v1/departments', requireAuth, async (req, res) => {
   const { data, error } = await supabase.from('cf_departments').select('*').order('name');
   if (error) return fail(res, 500, error.message);
   return ok(res, 200, { departments: data }, 'Departments fetched');
@@ -147,7 +184,16 @@ app.get('/api/v1/complaints', requireAuth, async (req, res) => {
   let query = supabase.from('cf_complaints').select('*, cf_users!cf_complaints_citizen_id_fkey(name, email), cf_departments(name, code)', { count: 'exact' });
 
   if (req.user.role === 'citizen') query = query.eq('citizen_id', req.user.id);
-  if (req.user.role === 'officer') query = query.eq('department_id', req.user.department_id);
+  if (req.user.role === 'officer') {
+    if (req.user.department_id) {
+      query = query.or(`department_id.eq.${req.user.department_id},assigned_officer_id.eq.${req.user.id}`);
+    } else {
+      query = query.eq('assigned_officer_id', req.user.id);
+    }
+  }
+  if (req.user.role === 'worker') {
+    query = query.eq('assigned_worker_id', req.user.id);
+  }
   if (status) query = query.eq('status', status);
   if (category) query = query.eq('category', category);
 
@@ -163,7 +209,13 @@ app.get('/api/v1/complaints/all', requireAuth, async (req, res) => {
   const { status, category } = req.query;
 
   let query = supabase.from('cf_complaints').select('*, cf_users!cf_complaints_citizen_id_fkey(name, email, phone), cf_departments(name, code)');
-  if (req.user.role === 'officer') query = query.eq('department_id', req.user.department_id);
+  if (req.user.role === 'officer') {
+    if (req.user.department_id) {
+      query = query.or(`department_id.eq.${req.user.department_id},assigned_officer_id.eq.${req.user.id}`);
+    } else {
+      query = query.eq('assigned_officer_id', req.user.id);
+    }
+  }
   if (status) query = query.eq('status', status);
   if (category) query = query.eq('category', category);
   query = query.order('created_at', { ascending: false });
@@ -181,6 +233,14 @@ app.get('/api/v1/complaints/:id', requireAuth, async (req, res) => {
     .single();
 
   if (error || !data) return fail(res, 404, 'Complaint not found');
+  const complaint = data;
+  if (req.user.role === 'citizen' && complaint.citizen_id !== req.user.id) return fail(res, 403, 'Forbidden');
+  if (req.user.role === 'officer') {
+    const owns = complaint.assigned_officer_id === req.user.id;
+    const inDept = complaint.department_id === req.user.department_id;
+    if (!owns && !inDept) return fail(res, 403, 'Forbidden');
+  }
+  if (req.user.role === 'worker' && complaint.assigned_worker_id !== req.user.id) return fail(res, 403, 'Forbidden');
   return ok(res, 200, { complaint: data }, 'Complaint fetched');
 });
 
