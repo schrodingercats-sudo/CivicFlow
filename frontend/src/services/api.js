@@ -3,8 +3,8 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 // Simple in-memory cache for GET requests
 const cache = new Map();
 const CACHE_TTL = {
-  '/departments': 300000,   // 5 minutes — rarely changes
-  '/workers': 120000,       // 2 minutes
+  '/departments': 300000,      // 5 minutes — rarely changes
+  '/workers': 30000,           // 30 seconds — changes on add/edit/delete
   '/analytics/summary': 30000, // 30 seconds
 };
 
@@ -30,9 +30,10 @@ export const apiRequest = async (endpoint, options = {}) => {
     }
   }
 
-  // Targeted cache invalidation on mutations (keep stable data like departments)
+  // Targeted cache invalidation on mutations
+  // /departments is stable (rarely changes), /workers clears on any mutation
   if (method !== 'GET') {
-    const STABLE_KEYS = ['/departments', '/workers'];
+    const STABLE_KEYS = ['/departments'];
     for (const key of cache.keys()) {
       if (!STABLE_KEYS.some(s => key.startsWith(s))) {
         cache.delete(key);
