@@ -107,14 +107,28 @@ export const LoginPage = () => {
               className="btn btn-secondary"
               style={{ width: '100%', justifyContent: 'flex-start', fontSize: '0.85rem' }}
             >
-              <Briefcase size={16} color="#0f172a" /> Officer Demo (Roads Dept)
+              <Briefcase size={16} color="#0f172a" /> Officer Demo — Roads Dept (Rajesh)
+            </button>
+            <button
+              onClick={() => handleLogin('officer.traffic@civicflow.org')}
+              className="btn btn-secondary"
+              style={{ width: '100%', justifyContent: 'flex-start', fontSize: '0.85rem' }}
+            >
+              <Briefcase size={16} color="#2563eb" /> Officer Demo — Traffic Dept (Priya)
             </button>
             <button
               onClick={() => handleLogin('worker.roads@civicflow.org')}
               className="btn btn-secondary"
               style={{ width: '100%', justifyContent: 'flex-start', fontSize: '0.85rem' }}
             >
-              <Wrench size={16} color="#0f172a" /> Field Worker Demo (Ramesh Kumar)
+              <Wrench size={16} color="#0f172a" /> Field Worker — Roads (Ramesh Kumar)
+            </button>
+            <button
+              onClick={() => handleLogin('worker.traffic@civicflow.org')}
+              className="btn btn-secondary"
+              style={{ width: '100%', justifyContent: 'flex-start', fontSize: '0.85rem' }}
+            >
+              <Wrench size={16} color="#2563eb" /> Field Worker — Traffic (Suresh Nair)
             </button>
             <button
               onClick={() => handleLogin('admin@civicflow.org')}
