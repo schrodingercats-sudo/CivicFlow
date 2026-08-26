@@ -52,7 +52,16 @@ export const apiRequest = async (endpoint, options = {}) => {
     headers
   });
 
-  const data = await response.json();
+  const raw = await response.text();
+  let data;
+  try {
+    data = raw ? JSON.parse(raw) : { success: false, message: 'Empty response' };
+  } catch (_e) {
+    const msg = response.status === 403
+      ? `CORS or forbidden (${response.status}). Please check the server configuration.`
+      : `Invalid response from server (HTTP ${response.status})`;
+    throw new Error(msg);
+  }
 
   if (!response.ok || !data.success) {
     throw new Error(data.message || 'API Request Failed');

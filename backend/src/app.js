@@ -35,7 +35,7 @@ const corsOptions = {
     if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS: ' + origin));
+      callback(null, false);
     }
   },
   credentials: true,
@@ -44,8 +44,15 @@ const corsOptions = {
   preflightContinue: true,
   optionsSuccessStatus: 204
 };
-app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
+
+app.use((err, req, res, next) => {
+  if (err && err.type === 'entity.parse.failed') {
+    return res.status(400).json({ success: false, statusCode: 400, message: 'Invalid JSON body' });
+  }
+  next(err);
+});
 
 // Increase JSON and URL-encoded body parser limits for Base64 image uploads
 app.use(express.json({ limit: '10mb' }));
