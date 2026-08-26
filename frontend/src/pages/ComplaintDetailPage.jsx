@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { complaintService } from '../services/complaint.service';
 import { useAuth } from '../hooks/useAuth';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -11,6 +11,7 @@ import { ArrowLeft, MapPin, Calendar, Building2, User, Star, Clock, Sparkles, XC
 export const ComplaintDetailPage = () => {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [complaint, setComplaint] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -81,9 +82,12 @@ export const ComplaintDetailPage = () => {
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
       <div className="responsive-header" style={{ marginBottom: '1.5rem' }}>
-        <Link to="/citizen" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', fontSize: '0.9rem', textDecoration: 'none', fontWeight: 600 }}>
-          <ArrowLeft size={16} /> Back to My Complaints
-        </Link>
+        <button
+          onClick={() => navigate(-1)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', fontSize: '0.9rem', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          <ArrowLeft size={16} /> Back
+        </button>
 
         {canWithdraw && (
           <button

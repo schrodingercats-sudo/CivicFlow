@@ -54,9 +54,14 @@ export const Navbar = () => {
           )}
 
           {user.role === 'officer' && (
-            <Link to="/officer" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}>
-              <LayoutDashboard size={16} /> <span className="nav-links-text">Officer Queue</span>
-            </Link>
+            <>
+              <Link to="/officer" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}>
+                <LayoutDashboard size={16} /> <span className="nav-links-text">Officer Queue</span>
+              </Link>
+              <Link to="/workers" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}>
+                <Wrench size={16} /> <span className="nav-links-text">Workers</span>
+              </Link>
+            </>
           )}
 
           {user.role === 'worker' && (
@@ -66,9 +71,14 @@ export const Navbar = () => {
           )}
 
           {user.role === 'admin' && (
-            <Link to="/admin" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}>
-              <LayoutDashboard size={16} /> <span className="nav-links-text">Admin Dashboard</span>
-            </Link>
+            <>
+              <Link to="/admin" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}>
+                <LayoutDashboard size={16} /> <span className="nav-links-text">Admin Dashboard</span>
+              </Link>
+              <Link to="/workers" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}>
+                <Wrench size={16} /> <span className="nav-links-text">Workers</span>
+              </Link>
+            </>
           )}
 
           {/* Explicit Profile Button for All Roles */}

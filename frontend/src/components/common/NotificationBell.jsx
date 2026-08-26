@@ -106,7 +106,7 @@ export const NotificationBell = () => {
             justifyContent: 'center',
             border: '2px solid #fff'
           }}>
-            {unreadCount}
+            {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>

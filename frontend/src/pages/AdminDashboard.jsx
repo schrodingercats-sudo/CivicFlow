@@ -33,7 +33,7 @@ export const AdminDashboard = () => {
       ]);
       setStats(statsRes);
       setComplaints(complaintsRes.complaints || []);
-      setDepartments(deptsRes?.departments || []);
+      setDepartments(Array.isArray(deptsRes) ? deptsRes : deptsRes?.departments || []);
     } catch (err) {
       console.error('Failed to load admin metrics:', err);
     } finally {

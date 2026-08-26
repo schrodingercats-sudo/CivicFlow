@@ -172,7 +172,7 @@ app.get('/api/v1/complaints/all', requireAuth, async (req, res) => {
   return ok(res, 200, { complaints: data }, 'All complaints fetched');
 });
 
-app.get('/api/v1/complaints/:id', async (req, res) => {
+app.get('/api/v1/complaints/:id', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('cf_complaints')
     .select('*, cf_users!cf_complaints_citizen_id_fkey(name, email, phone), cf_departments(name, code), cf_complaint_updates(*)')
@@ -603,13 +603,45 @@ app.patch('/api/v1/complaints/:id/assign-worker', requireAuth, async (req, res) 
 
 app.get('/api/v1/workers', requireAuth, async (req, res) => {
   if (!['admin', 'officer'].includes(req.user.role)) return fail(res, 403, 'Forbidden');
-  let query = supabase.from('cf_users').select('id, name, email, phone, department_id, cf_departments(name, code)').eq('role', 'worker');
+  let query = supabase.from('cf_users').select('id, name, email, phone, department_id, active, created_at, cf_departments(name, code)').eq('role', 'worker');
   if (req.user.role === 'officer' && req.user.department_id) {
     query = query.eq('department_id', req.user.department_id);
   }
-  const { data, error } = await query;
+  const { data, error } = await query.order('created_at', { ascending: false });
   if (error) return fail(res, 500, error.message);
   return ok(res, 200, { workers: data || [] }, 'Workers list fetched');
+});
+
+// Update worker info (admin/officer)
+app.patch('/api/v1/workers/:id', requireAuth, async (req, res) => {
+  if (!['admin', 'officer'].includes(req.user.role)) return fail(res, 403, 'Forbidden');
+  const { name, phone, department_id } = req.body;
+  const updates = {};
+  if (name) updates.name = name;
+  if (phone !== undefined) updates.phone = phone;
+  if (department_id && req.user.role === 'admin') updates.department_id = department_id;
+  const { data, error } = await supabase.from('cf_users').update(updates).eq('id', req.params.id).eq('role', 'worker').select('*').single();
+  if (error) return fail(res, 500, error.message);
+  return ok(res, 200, { worker: data }, 'Worker updated');
+});
+
+// Toggle worker active/inactive
+app.patch('/api/v1/workers/:id/status', requireAuth, async (req, res) => {
+  if (!['admin', 'officer'].includes(req.user.role)) return fail(res, 403, 'Forbidden');
+  const { active } = req.body;
+  const { data, error } = await supabase.from('cf_users').update({ active: !!active }).eq('id', req.params.id).eq('role', 'worker').select('*').single();
+  if (error) return fail(res, 500, error.message);
+  return ok(res, 200, { worker: data }, `Worker marked ${active ? 'active' : 'inactive'}`);
+});
+
+// Delete worker
+app.delete('/api/v1/workers/:id', requireAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return fail(res, 403, 'Only admins can delete workers');
+  // Unassign from any complaints first
+  await supabase.from('cf_complaints').update({ assigned_worker_id: null }).eq('assigned_worker_id', req.params.id);
+  const { error } = await supabase.from('cf_users').delete().eq('id', req.params.id).eq('role', 'worker');
+  if (error) return fail(res, 500, error.message);
+  return ok(res, 200, {}, 'Worker deleted');
 });
 
 // ── Notifications ─────────────────────────────────────────────────────────────

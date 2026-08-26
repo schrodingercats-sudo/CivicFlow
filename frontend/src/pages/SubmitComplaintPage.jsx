@@ -281,7 +281,10 @@ export const SubmitComplaintPage = () => {
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Longitude</label>
                 <input
-                  type="text"
+                  type="number"
+                  step="any"
+                  min="-180"
+                  max="180"
                   className="form-input"
                   value={formData.longitude}
                   onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}

@@ -30,9 +30,14 @@ export const apiRequest = async (endpoint, options = {}) => {
     }
   }
 
-  // Invalidate cache on mutating requests
+  // Targeted cache invalidation on mutations (keep stable data like departments)
   if (method !== 'GET') {
-    cache.clear();
+    const STABLE_KEYS = ['/departments', '/workers'];
+    for (const key of cache.keys()) {
+      if (!STABLE_KEYS.some(s => key.startsWith(s))) {
+        cache.delete(key);
+      }
+    }
   }
 
   const headers = {
