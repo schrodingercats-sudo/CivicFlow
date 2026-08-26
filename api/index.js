@@ -88,6 +88,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
     .single();
 
   if (error || !user) return fail(res, 404, 'User not found. Please check your email or register.');
+  if (user.active === false) return fail(res, 403, 'Account is deactivated. Contact your administrator.');
 
   const token = generateToken(user);
   return ok(res, 200, { user, token }, 'Login successful');
@@ -293,15 +294,19 @@ app.patch('/api/v1/complaints/:id/status', requireAuth, async (req, res) => {
 
   if (error || !data) return fail(res, 500, `Update failed: ${error?.message}`);
 
-  // Log to cf_complaint_updates WITH proof_image_url
-  await supabase.from('cf_complaint_updates').insert([{
-    complaint_id: req.params.id,
-    updated_by: req.user.id,
-    old_status: existing?.status || null,
-    new_status: status,
-    remarks: remarks || `Status updated to ${status}`,
-    proof_image_url: proof_image_url || null
-  }]);
+  // DB-011: Only log audit if status changed OR meaningful remarks/proof provided
+  const statusChanged = existing?.status !== status;
+  const hasMeaningfulData = remarks || proof_image_url || department_id;
+  if (statusChanged || hasMeaningfulData) {
+    await supabase.from('cf_complaint_updates').insert([{
+      complaint_id: req.params.id,
+      updated_by: req.user.id,
+      old_status: existing?.status || null,
+      new_status: status,
+      remarks: remarks || (statusChanged ? `Status updated to ${status}` : `Department reassigned`),
+      proof_image_url: proof_image_url || null
+    }]);
+  }
 
   // Create notification for the citizen who filed the complaint
   if (existing?.citizen_id) {
@@ -573,19 +578,23 @@ app.patch('/api/v1/complaints/:id/assign-worker', requireAuth, async (req, res) 
     .select('id, title, status').eq('id', req.params.id).single();
   if (!complaint) return fail(res, 404, 'Complaint not found');
 
+  // DB-005: Don't regress status if complaint already resolved or closed
+  const TERMINAL_STATUSES = ['resolved', 'closed'];
+  const newStatus = TERMINAL_STATUSES.includes(complaint.status) ? complaint.status : 'assigned';
+
   const { data, error } = await supabase.from('cf_complaints')
-    .update({ assigned_worker_id: worker_id, status: 'assigned', updated_at: new Date().toISOString() })
+    .update({ assigned_worker_id: worker_id, status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', req.params.id).select().single();
 
   if (error) return fail(res, 500, `Assignment failed: ${error.message}`);
 
-  // Log audit
+  // Log audit only if status actually changed
   await supabase.from('cf_complaint_updates').insert([{
     complaint_id: req.params.id,
     updated_by: req.user.id,
     old_status: complaint.status,
-    new_status: 'assigned',
-    remarks: 'Task assigned to field worker for dispatch.'
+    new_status: newStatus,
+    remarks: `Worker assigned${complaint.status === newStatus ? ' (status preserved — already ' + newStatus + ')' : ' for dispatch'}.`
   }]);
 
   // Notify worker

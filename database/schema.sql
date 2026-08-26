@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS public.cf_users (
     email VARCHAR(255) NOT NULL UNIQUE,
     phone VARCHAR(20),
     role cf_user_role NOT NULL DEFAULT 'citizen',
+    active BOOLEAN NOT NULL DEFAULT TRUE,
     department_id UUID REFERENCES public.cf_departments(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -98,12 +99,14 @@ CREATE TABLE IF NOT EXISTS public.cf_complaints (
     
     -- Media Attributes
     image_url TEXT,
-    
+    geo_image_url TEXT, -- GeoCam verified photo overlay
+
     -- Foreign Keys
     citizen_id UUID NOT NULL REFERENCES public.cf_users(id) ON DELETE CASCADE,
     department_id UUID REFERENCES public.cf_departments(id) ON DELETE SET NULL,
     assigned_officer_id UUID REFERENCES public.cf_users(id) ON DELETE SET NULL,
-    
+    assigned_worker_id UUID REFERENCES public.cf_users(id) ON DELETE SET NULL,
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -141,14 +144,32 @@ CREATE TABLE IF NOT EXISTS public.cf_notifications (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 7. Worker Updates Table (Field Worker Progress)
+CREATE TABLE IF NOT EXISTS public.cf_worker_updates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    complaint_id UUID NOT NULL REFERENCES public.cf_complaints(id) ON DELETE CASCADE,
+    worker_id UUID NOT NULL REFERENCES public.cf_users(id) ON DELETE CASCADE,
+    update_type TEXT NOT NULL DEFAULT 'progress', -- accepted | in_progress | completed | progress
+    remarks TEXT,
+    proof_image_url TEXT,
+    geo_image_url TEXT,
+    latitude NUMERIC(10, 8),
+    longitude NUMERIC(11, 8),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_cf_complaints_status ON public.cf_complaints(status);
 CREATE INDEX IF NOT EXISTS idx_cf_complaints_citizen ON public.cf_complaints(citizen_id);
 CREATE INDEX IF NOT EXISTS idx_cf_complaints_dept ON public.cf_complaints(department_id);
 CREATE INDEX IF NOT EXISTS idx_cf_complaints_category ON public.cf_complaints(category);
 CREATE INDEX IF NOT EXISTS idx_cf_complaints_ai_status ON public.cf_complaints(ai_status);
+CREATE INDEX IF NOT EXISTS idx_cf_complaints_worker ON public.cf_complaints(assigned_worker_id);
 CREATE INDEX IF NOT EXISTS idx_cf_updates_complaint ON public.cf_complaint_updates(complaint_id);
 CREATE INDEX IF NOT EXISTS idx_cf_notifications_user ON public.cf_notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_cf_notifications_created ON public.cf_notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cf_worker_updates_complaint ON public.cf_worker_updates(complaint_id);
+CREATE INDEX IF NOT EXISTS idx_cf_worker_updates_worker ON public.cf_worker_updates(worker_id);
 
 -- Triggers
 DROP TRIGGER IF EXISTS set_cf_departments_updated_at ON public.cf_departments;
