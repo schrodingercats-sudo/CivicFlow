@@ -64,6 +64,18 @@ export const apiRequest = async (endpoint, options = {}) => {
   }
 
   if (!response.ok || !data.success) {
+    if (response.status === 429) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('civicflow-rate-limit', {
+          detail: {
+            message: data.message || 'Too Many Requests (Rate limit exceeded).',
+            retryAfter: data.retryAfter || 30,
+            compliance: data.compliance || 'SOC-2 CC6.6'
+          }
+        }));
+      }
+      throw new Error(data.message || 'Too Many Requests (429): Rate limit exceeded to prevent server flooding.');
+    }
     throw new Error(data.message || 'API Request Failed');
   }
 
@@ -83,4 +95,20 @@ export const prefetchData = async () => {
   try {
     await apiRequest('/departments');
   } catch (e) { /* silent */ }
+};
+
+// ── SOC 2 & Compliance Services ──
+export const complianceService = {
+  getSoc2Status: () => apiRequest('/compliance/soc2-status'),
+  getAuditLogs: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/compliance/audit-logs${query ? `?${query}` : ''}`);
+  },
+  downloadAuditLogUrl: `${API_BASE_URL}/compliance/download-audit-log`
+};
+
+// ── Worker Field History Services ──
+export const workerHistoryService = {
+  getWorkerHistory: (workerId) => apiRequest(`/workers/${workerId}/history`),
+  getComplaintWorkerHistory: (complaintId) => apiRequest(`/complaints/${complaintId}/worker-history`)
 };

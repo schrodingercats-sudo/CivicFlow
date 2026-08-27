@@ -6,7 +6,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { ComplaintImage } from '../components/common/ComplaintImage';
 import { ComplaintMap } from '../components/common/ComplaintMap';
-import { ArrowLeft, MapPin, Calendar, Building2, User, Star, Clock, Sparkles, XCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Building2, User, Star, Clock, Sparkles, XCircle, CheckCircle2, Wrench, ShieldCheck, Phone, Mail } from 'lucide-react';
 
 export const ComplaintDetailPage = () => {
   const { id } = useParams();
@@ -34,11 +34,11 @@ export const ComplaintDetailPage = () => {
       const data = await complaintService.getComplaintById(id);
       // API returns { complaint: {...} } — unwrap it
       const c = data?.complaint || data;
-      // Ensure timeline and rating arrays exist even if API doesn't return them
+      // Ensure timeline, worker_updates, and rating exist
       if (!c.timeline) c.timeline = c.cf_complaint_updates || [];
       if (!c.rating) c.rating = c.cf_ratings || null;
-      // Normalize citizen data — might come as cf_users from FK join
       if (!c.citizen) c.citizen = c.cf_users || null;
+      if (!c.worker_updates) c.worker_updates = c.cf_worker_updates || [];
       setComplaint(c);
     } catch (err) {
       setError(err.message || 'Failed to load complaint details');
@@ -231,6 +231,75 @@ export const ComplaintDetailPage = () => {
             </div>
           </div>
 
+          {/* Field Worker Dispatch & Activity History */}
+          <div className="clay-card" style={{ padding: '2rem' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Wrench size={20} color="#2563eb" /> Field Worker On-Site Activity & History
+            </h3>
+
+            {complaint.worker && (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Current Assigned Worker</div>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a', marginTop: '0.1rem' }}>{complaint.worker.name}</div>
+                  <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{complaint.worker.email} {complaint.worker.phone ? `• ${complaint.worker.phone}` : ''}</div>
+                </div>
+                <span style={{ padding: '0.3rem 0.75rem', background: '#dcfce7', color: '#166534', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, border: '1px solid #bbf7d0' }}>
+                  Field Staff Assigned
+                </span>
+              </div>
+            )}
+
+            {complaint.worker_updates && complaint.worker_updates.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {complaint.worker_updates.map((update, idx) => (
+                  <div key={update.id || idx} style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', borderRadius: '10px', padding: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          padding: '0.2rem 0.55rem', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase',
+                          background: update.update_type === 'completed' ? '#dcfce7' : update.update_type === 'in_progress' ? '#eff6ff' : '#fef3c7',
+                          color: update.update_type === 'completed' ? '#166534' : update.update_type === 'in_progress' ? '#1d4ed8' : '#92400e'
+                        }}>
+                          {update.update_type.replace('_', ' ')}
+                        </span>
+                        <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a' }}>
+                          {update.worker?.name || 'Field Worker'}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                        {new Date(update.created_at).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: '0.875rem', color: '#334155', marginTop: '0.35rem' }}>
+                      "{update.remarks}"
+                    </div>
+
+                    {(update.geo_image_url || update.proof_image_url) && (
+                      <div style={{ marginTop: '0.75rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.3rem' }}>
+                          <ShieldCheck size={14} /> GeoCam Field Verified Photo:
+                        </div>
+                        <img
+                          src={update.geo_image_url || update.proof_image_url}
+                          alt="Field Work Proof"
+                          style={{ maxWidth: '280px', maxHeight: '180px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #cbd5e1' }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '10px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
+                {complaint.assigned_worker_id
+                  ? 'Worker assigned — awaiting first on-site check-in.'
+                  : 'No field worker assigned yet. Officer will dispatch field staff upon triage.'}
+              </div>
+            )}
+          </div>
+
           {(complaint.status === 'resolved' || complaint.status === 'closed') && (
             <div className="clay-card" style={{ padding: '2rem' }}>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -308,6 +377,20 @@ export const ComplaintDetailPage = () => {
                   <Building2 size={16} /> {complaint.cf_departments?.name || 'Unassigned'}
                 </div>
               </div>
+
+              {complaint.worker && (
+                <div>
+                  <div style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 600 }}>Assigned Field Worker</div>
+                  <div style={{ fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.15rem' }}>
+                    <Wrench size={16} color="#2563eb" /> {complaint.worker.name}
+                  </div>
+                  {complaint.worker.phone && (
+                    <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '0.25rem' }}>
+                      📞 <a href={`tel:${complaint.worker.phone}`} style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 600 }}>{complaint.worker.phone}</a>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <div style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 600 }}>Reported Location</div>
