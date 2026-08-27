@@ -4,7 +4,6 @@ import { AuthProvider } from './context/AuthContext';
 import { SearchProvider } from './context/SearchContext';
 import { useAuth } from './hooks/useAuth';
 import { RateLimitBlockPage } from './components/common/RateLimitBlockPage';
-import { Agentation } from 'agentation';
 
 // ── Global Enterprise Rate Limiter & Flood Shield ──
 const GlobalRateLimiter = ({ children }) => {
@@ -216,7 +215,6 @@ export default function App() {
                   } />
                 </Routes>
               </Suspense>
-              <Agentation />
             </div>
           </BrowserRouter>
         </GlobalRateLimiter>
