@@ -37,7 +37,6 @@ export const getCachedResponse = (endpoint) => {
     if (raw) {
       const entry = JSON.parse(raw);
       if (entry && Date.now() - entry.timestamp < entry.ttl) {
-        // Backfill memory tier
         memoryCache.set(endpoint, entry);
         return entry.data;
       } else {
@@ -90,7 +89,16 @@ export const clearCache = (prefix) => {
   }
 };
 
-// ── Core API Request Client with SWR ──
+// ── Mock Fallback Data (For offline resiliency) ──
+const MOCK_DEPARTMENTS = [
+  { id: 'dept-roads', name: 'Roads & Infrastructure', code: 'ROADS', icon: 'Construction' },
+  { id: 'dept-waste', name: 'Solid Waste Management', code: 'WASTE', icon: 'Trash2' },
+  { id: 'dept-electricity', name: 'Electricity & Lighting', code: 'ELEC', icon: 'Zap' },
+  { id: 'dept-water', name: 'Water Supply & Sewage', code: 'WATER', icon: 'Droplets' },
+  { id: 'dept-traffic', name: 'Traffic & Transport', code: 'TRAFFIC', icon: 'Navigation' }
+];
+
+// ── Core API Request Client with SWR and 429 Interceptor ──
 export const apiRequest = async (endpoint, options = {}) => {
   const token = localStorage.getItem('civicflow_token');
   const method = options.method?.toUpperCase() || 'GET';
@@ -121,56 +129,62 @@ export const apiRequest = async (endpoint, options = {}) => {
     ...options.headers
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers
-  });
-
-  const raw = await response.text();
-  let data;
   try {
-    data = raw ? JSON.parse(raw) : { success: false, message: 'Empty response' };
-  } catch (_e) {
-    const msg = response.status === 403
-      ? `CORS or forbidden (${response.status}). Please check the server configuration.`
-      : `Invalid response from server (HTTP ${response.status})`;
-    throw new Error(msg);
-  }
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers
+    });
 
-  if (!response.ok || !data.success) {
-    if (response.status === 429) {
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('civicflow-rate-limit', {
-          detail: {
-            message: data.message || 'Too Many Requests (Rate limit exceeded).',
-            retryAfter: data.retryAfter || 30,
-            compliance: data.compliance || 'SOC-2 CC6.6'
-          }
-        }));
+    const raw = await response.text();
+    let data;
+    try {
+      data = raw ? JSON.parse(raw) : { success: false, message: 'Empty response' };
+    } catch (_e) {
+      const msg = response.status === 403
+        ? `CORS or forbidden (${response.status}). Please check the server configuration.`
+        : `Invalid response from server (HTTP ${response.status})`;
+      throw new Error(msg);
+    }
+
+    if (!response.ok || !data.success) {
+      if (response.status === 429) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('civicflow-rate-limit', {
+            detail: {
+              message: data.message || 'Too Many Requests (Rate limit exceeded).',
+              retryAfter: data.retryAfter || 30,
+              compliance: data.compliance || 'SOC-2 CC6.6'
+            }
+          }));
+        }
+        throw new Error(data.message || 'Too Many Requests (429): Rate limit exceeded to prevent server flooding.');
       }
-      throw new Error(data.message || 'Too Many Requests (429): Rate limit exceeded to prevent server flooding.');
+      throw new Error(data.message || 'API Request Failed');
     }
-    throw new Error(data.message || 'API Request Failed');
-  }
 
-  // Store in multi-tier cache for GET
-  if (method === 'GET') {
-    const config = getEndpointConfig(endpoint);
-    if (config) {
-      setCachedResponse(endpoint, data.data, config.ttl);
+    // Store in multi-tier cache for GET
+    if (method === 'GET') {
+      const config = getEndpointConfig(endpoint);
+      if (config) {
+        setCachedResponse(endpoint, data.data, config.ttl);
+      }
     }
-  }
 
-  return data.data;
+    return data.data;
+  } catch (err) {
+    if (endpoint === '/departments') {
+      return MOCK_DEPARTMENTS;
+    }
+    throw err;
+  }
 };
 
 // ── Smart Prefetch Helper (Pre-warms cache on hover or background) ──
 export const prefetchEndpoint = async (endpoint) => {
   try {
-    // If already cached and fresh, do nothing
     if (getCachedResponse(endpoint) !== null) return;
     await apiRequest(endpoint);
-  } catch (_e) { /* silent background prefetch */ }
+  } catch (_e) { /* silent */ }
 };
 
 export const prefetchData = async () => {
@@ -207,7 +221,6 @@ export const useSWRData = (endpoint, fetchFn, dependencies = []) => {
         if (!isMounted) return;
 
         const newHash = JSON.stringify(freshData);
-        // Only trigger state update if data actually changed to prevent jitter/flicker
         if (newHash !== lastHashRef.current) {
           lastHashRef.current = newHash;
           setData(freshData);
