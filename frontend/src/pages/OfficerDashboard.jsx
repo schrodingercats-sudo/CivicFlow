@@ -22,13 +22,13 @@ const compressProofImage = (file, callback) => {
     img.onload = () => {
       const canvas = document.createElement('canvas');
       let w = img.width, h = img.height;
-      const MAX = 1200;
+      const MAX = 640;
       if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
       else { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
       canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/jpeg', 0.8));
+      callback(canvas.toDataURL('image/jpeg', 0.65));
     };
     img.src = event.target.result;
   };

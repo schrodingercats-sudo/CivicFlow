@@ -1,11 +1,13 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
-// Simple in-memory cache for GET requests
+// High-speed in-memory SWR cache for GET requests
 const cache = new Map();
 const CACHE_TTL = {
-  '/departments': 300000,      // 5 minutes — rarely changes
-  '/workers': 30000,           // 30 seconds — changes on add/edit/delete
-  '/analytics/summary': 30000, // 30 seconds
+  '/departments': 300000,          // 5 minutes — static reference data
+  '/workers': 30000,               // 30 seconds
+  '/analytics/summary': 15000,     // 15 seconds
+  '/compliance/soc2-status': 15000,// 15 seconds
+  '/complaints': 6000,             // 6 seconds — speeds up tab switches & reloads
 };
 
 const getCacheTTL = (endpoint) => {

@@ -13,8 +13,8 @@ const compressImage = (file, callback) => {
       const canvas = document.createElement('canvas');
       let width = img.width;
       let height = img.height;
-      const MAX_WIDTH = 1400;
-      const MAX_HEIGHT = 1400;
+      const MAX_WIDTH = 640;
+      const MAX_HEIGHT = 640;
 
       if (width > height) {
         if (width > MAX_WIDTH) {
@@ -35,7 +35,8 @@ const compressImage = (file, callback) => {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, width, height);
 
-      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      // Highly optimized 65% quality JPEG (~35KB payload for instant upload)
+      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.65);
       callback(compressedDataUrl);
     };
     img.src = event.target.result;

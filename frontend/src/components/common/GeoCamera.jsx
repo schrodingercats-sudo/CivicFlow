@@ -82,7 +82,7 @@ export const GeoCamera = ({ imageSrc, latitude, longitude, address, onGeoImageRe
     originalImg.onload = () => {
       if (!isMounted) return;
       
-      const MAX_WIDTH = 1400;
+      const MAX_WIDTH = 640;
       let width = originalImg.width;
       let height = originalImg.height;
 
@@ -150,8 +150,8 @@ export const GeoCamera = ({ imageSrc, latitude, longitude, address, onGeoImageRe
         // District + Pincode — REAL geocoded data, no more fake "Local District"
         ctx.fillText(buildLine4(), textX, textY + 75);
 
-        // Finish up
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        // Finish up - 65% quality for ultra-fast load on slow mobile/WiFi networks
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
         setPreviewSrc(dataUrl);
         if (onGeoImageReady) {
           onGeoImageReady(dataUrl);
