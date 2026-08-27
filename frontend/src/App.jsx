@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { Navbar } from './components/common/Navbar';
+import { Agentation } from 'agentation';
 
 // Lazy-loaded pages for better initial load performance
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
@@ -152,6 +153,7 @@ export default function App() {
               </Routes>
             </Suspense>
           </main>
+          <Agentation />
         </div>
       </BrowserRouter>
     </AuthProvider>
