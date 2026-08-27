@@ -537,21 +537,13 @@ export const AdminDashboard = () => {
             ))}
           </div>
 
-          {/* Action Toolbar for Demos & Exports */}
+          {/* Action Toolbar for Audit Exports */}
           <div className="clay-card" style={{ padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>Audit Trail Controls & Testing</div>
-              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Simulate rate limiting triggers for hackathon demo or export raw logs.</div>
+              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>SOC 2 Compliance Audit Log Archive</div>
+              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Export immutable compliance logs for third-party auditing & regulatory filing.</div>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button
-                onClick={simulateRateLimit}
-                className="btn btn-secondary"
-                style={{ padding: '0.5rem 0.9rem', fontSize: '0.8rem', color: '#b45309', borderColor: '#fde68a', background: '#fffbeb', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                title="Trigger 429 Too Many Requests to demonstrate rate limiter"
-              >
-                <Zap size={14} /> Test 429 Rate Limiter
-              </button>
               <button
                 onClick={downloadAuditLog}
                 className="btn btn-primary"

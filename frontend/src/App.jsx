@@ -9,23 +9,20 @@ import { Agentation } from 'agentation';
 // ── Global Enterprise Rate Limiter & Flood Shield (SOC-2 CC6.6) ──
 const GlobalRateLimiter = ({ children }) => {
   const [isBlocked, setIsBlocked] = useState(false);
-  const [countdown, setCountdown] = useState(30);
-  const [incidentId, setIncidentId] = useState(null);
 
   useEffect(() => {
     // 1. Check existing persisted rate limit in localStorage
     const checkPersistedLock = () => {
       try {
         const lockUntil = parseInt(localStorage.getItem('civicflow_rate_limit_until') || '0', 10);
-        const remainingSec = Math.ceil((lockUntil - Date.now()) / 1000);
-        if (remainingSec > 0) {
-          setCountdown(remainingSec);
+        if (lockUntil && lockUntil > Date.now()) {
           setIsBlocked(true);
           return true;
-        } else {
+        } else if (lockUntil) {
           localStorage.removeItem('civicflow_rate_limit_until');
           return false;
         }
+        return false;
       } catch (_e) {
         return false;
       }
@@ -43,23 +40,18 @@ const GlobalRateLimiter = ({ children }) => {
         sessionStorage.setItem('civicflow_page_loads', JSON.stringify(recentLoads));
 
         if (recentLoads.length >= 4) {
-          const cooldownSec = 25;
-          localStorage.setItem('civicflow_rate_limit_until', (now + cooldownSec * 1000).toString());
-          setCountdown(cooldownSec);
-          setIncidentId(`REFRESH-BURST-${Math.random().toString(36).substring(2, 8).toUpperCase()}`);
+          const cooldownMs = 15 * 60 * 1000; // 15 minutes
+          localStorage.setItem('civicflow_rate_limit_until', (now + cooldownMs).toString());
           setIsBlocked(true);
         }
       } catch (_e) {}
     }
 
     // 3. API 429 Event Interceptor (Any backend rate limit response)
-    const handleApiRateLimit = (e) => {
-      const detail = e.detail || {};
-      const cooldownSec = detail.retryAfter || 30;
+    const handleApiRateLimit = () => {
       const now = Date.now();
-      localStorage.setItem('civicflow_rate_limit_until', (now + cooldownSec * 1000).toString());
-      setCountdown(cooldownSec);
-      setIncidentId(`API-429-${Math.random().toString(36).substring(2, 8).toUpperCase()}`);
+      const cooldownMs = 15 * 60 * 1000; // 15 minutes
+      localStorage.setItem('civicflow_rate_limit_until', (now + cooldownMs).toString());
       setIsBlocked(true);
     };
 
@@ -67,21 +59,8 @@ const GlobalRateLimiter = ({ children }) => {
     return () => window.removeEventListener('civicflow-rate-limit', handleApiRateLimit);
   }, []);
 
-  const handleUnlock = () => {
-    localStorage.removeItem('civicflow_rate_limit_until');
-    sessionStorage.removeItem('civicflow_page_loads');
-    setIsBlocked(false);
-  };
-
   if (isBlocked) {
-    return (
-      <RateLimitBlockPage
-        countdown={countdown}
-        initialCooldown={countdown}
-        onUnlock={handleUnlock}
-        incidentId={incidentId}
-      />
-    );
+    return <RateLimitBlockPage />;
   }
 
   return children;
