@@ -68,21 +68,20 @@ export const Navbar = () => {
   return (
     <nav className="nav-container">
       {/* Brand / Logo */}
-      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', textDecoration: 'none' }}>
-        <div style={{
-          width: '36px',
-          height: '36px',
-          borderRadius: '10px',
-          background: '#0f172a',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#ffffff',
-          boxShadow: '0 4px 6px rgba(15, 23, 42, 0.15)',
-          flexShrink: 0
-        }}>
-          <Shield size={20} fontWeight="bold" />
-        </div>
+      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
+        <img
+          src="/logo-icon.png"
+          alt="CivicFlow Logo"
+          style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '10px',
+            objectFit: 'cover',
+            boxShadow: '0 2px 5px rgba(0, 0, 0, 0.08)',
+            flexShrink: 0,
+            border: '1px solid #e2e8f0'
+          }}
+        />
         <div>
           <span style={{ fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#0f172a' }}>
             Civic<span style={{ color: '#2563eb' }}>Flow</span>

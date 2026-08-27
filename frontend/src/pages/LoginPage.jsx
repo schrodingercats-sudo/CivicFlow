@@ -31,20 +31,16 @@ export const LoginPage = () => {
     <div style={{ maxWidth: '440px', margin: '3rem auto' }}>
       <div className="clay-card" style={{ padding: '2.5rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{
-            width: '54px',
-            height: '54px',
-            borderRadius: '14px',
-            background: '#0f172a',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#ffffff',
-            marginBottom: '1rem',
-            boxShadow: '0 6px 12px rgba(15, 23, 42, 0.2)'
-          }}>
-            <Shield size={28} />
-          </div>
+          <img
+            src="/logo.png"
+            alt="CivicFlow"
+            style={{
+              maxWidth: '180px',
+              height: 'auto',
+              marginBottom: '1rem',
+              display: 'inline-block'
+            }}
+          />
           <h2 style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#0f172a' }}>Welcome to CivicFlow</h2>
           <p style={{ color: '#64748b', fontSize: '0.875rem', marginTop: '0.25rem' }}>
             Sign in to track or manage civic complaints

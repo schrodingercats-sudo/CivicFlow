@@ -4,8 +4,15 @@ import { authService } from '../services/auth.service';
 export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('civicflow_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch (_e) {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -13,37 +20,51 @@ export const AuthProvider = ({ children }) => {
       if (token) {
         try {
           const data = await authService.getMe();
-          setUser(data.user);
+          if (data?.user) {
+            setUser(data.user);
+            localStorage.setItem('civicflow_user', JSON.stringify(data.user));
+          }
         } catch (error) {
-          console.error('Session restore failed:', error);
-          authService.logout();
+          if (error.message?.includes('401') || error.message?.includes('403')) {
+            authService.logout();
+            setUser(null);
+          }
         }
       }
-      setLoading(false);
     };
     initAuth();
   }, []);
 
   const login = async (email) => {
     const data = await authService.login(email);
-    setUser(data.user);
+    if (data?.user) {
+      setUser(data.user);
+      localStorage.setItem('civicflow_user', JSON.stringify(data.user));
+    }
     return data;
   };
 
   const register = async (userData) => {
     const data = await authService.register(userData);
-    setUser(data.user);
+    if (data?.user) {
+      setUser(data.user);
+      localStorage.setItem('civicflow_user', JSON.stringify(data.user));
+    }
     return data;
   };
 
   const updateProfile = async (profileData) => {
     const data = await authService.updateProfile(profileData);
-    setUser(data.user);
+    if (data?.user) {
+      setUser(data.user);
+      localStorage.setItem('civicflow_user', JSON.stringify(data.user));
+    }
     return data;
   };
 
   const logout = () => {
     authService.logout();
+    localStorage.removeItem('civicflow_user');
     setUser(null);
   };
 

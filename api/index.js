@@ -367,6 +367,7 @@ app.put('/api/v1/auth/profile', requireAuth, wrap(async (req, res) => {
 }));
 
 app.get('/api/v1/departments', requireAuth, wrap(async (req, res) => {
+  res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
   const { data, error } = await supabase.from('cf_departments').select('*').order('name');
   if (error) return fail(res, 500, error.message);
   return ok(res, 200, { departments: data }, 'Departments fetched');
@@ -729,6 +730,7 @@ app.delete('/api/v1/complaints/:id', requireAuth, wrap(async (req, res) => {
 
 app.get('/api/v1/analytics/summary', requireAuth, wrap(async (req, res) => {
   if (req.user.role !== 'admin') return fail(res, 403, 'Forbidden');
+  res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=30');
   const { data: complaints } = await supabase.from('cf_complaints').select('status, category, created_at');
   const { data: users } = await supabase.from('cf_users').select('id, role');
   const { data: departments } = await supabase.from('cf_departments').select('id');
