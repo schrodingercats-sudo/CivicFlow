@@ -226,13 +226,10 @@ body {
   .nav-container {
     padding: 0.65rem 1rem !important;
   }
-  .nav-user-text {
+  .desktop-nav-links {
     display: none !important;
   }
-  .nav-divider {
-    display: none !important;
-  }
-  .nav-links-text {
+  .desktop-user-name {
     display: none !important;
   }
 }
