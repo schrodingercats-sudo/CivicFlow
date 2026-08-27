@@ -53,7 +53,7 @@ const logAuditEvent = (eventData) => {
 // ── Rate Limiting Store (Sliding Window per IP / Client Token) ──
 const rateLimitStore = new Map();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 60s window
-const RATE_LIMIT_MAX_REQUESTS = 60; // 60 requests per minute
+const RATE_LIMIT_MAX_REQUESTS = 40; // 40 requests per minute
 
 const isAllowedOrigin = (origin) => {
   if (!origin) return true;
@@ -156,11 +156,11 @@ app.use((req, res, next) => {
     rateLimitStore.set(clientIp, clientRecord);
   }
 
-  // Detect rapid refresh bursts (<250ms gap)
-  if (now - clientRecord.lastReq < 250) {
+  // Detect rapid refresh bursts (<350ms gap)
+  if (now - clientRecord.lastReq < 350) {
     clientRecord.rapidBursts += 1;
-  } else if (now - clientRecord.lastReq > 3000) {
-    clientRecord.rapidBursts = Math.max(0, clientRecord.rapidBursts - 2);
+  } else if (now - clientRecord.lastReq > 4000) {
+    clientRecord.rapidBursts = Math.max(0, clientRecord.rapidBursts - 1);
   }
   clientRecord.lastReq = now;
   clientRecord.count += 1;
@@ -173,8 +173,8 @@ app.use((req, res, next) => {
   res.setHeader('X-RateLimit-Remaining', isTestForced ? 0 : remaining);
   res.setHeader('X-RateLimit-Reset', resetTime);
 
-  // Rate limit exceeded trigger: total requests > 60 in window OR rapid spam burst > 18 OR demo flag
-  if (isTestForced || clientRecord.count > RATE_LIMIT_MAX_REQUESTS || clientRecord.rapidBursts > 18) {
+  // Rate limit exceeded trigger: total requests > 40 in window OR rapid spam burst >= 6 OR demo flag
+  if (isTestForced || clientRecord.count > RATE_LIMIT_MAX_REQUESTS || clientRecord.rapidBursts >= 6) {
     res.setHeader('Retry-After', retryAfterSeconds);
 
     logAuditEvent({

@@ -3,89 +3,88 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { Navbar } from './components/common/Navbar';
+import { RateLimitBlockPage } from './components/common/RateLimitBlockPage';
 import { Agentation } from 'agentation';
-import { ShieldAlert, X, AlertTriangle } from 'lucide-react';
 
-// ── Rate Limit Notification Banner (SOC-2 CC6.6 Real-Time Warning) ──
-const RateLimitBanner = () => {
-  const [rateLimitInfo, setRateLimitInfo] = useState(null);
-  const [countdown, setCountdown] = useState(0);
+// ── Global Enterprise Rate Limiter & Flood Shield (SOC-2 CC6.6) ──
+const GlobalRateLimiter = ({ children }) => {
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [countdown, setCountdown] = useState(30);
+  const [incidentId, setIncidentId] = useState(null);
 
   useEffect(() => {
-    const handleRateLimit = (e) => {
-      const detail = e.detail || {};
-      setRateLimitInfo(detail);
-      setCountdown(detail.retryAfter || 30);
+    // 1. Check existing persisted rate limit in localStorage
+    const checkPersistedLock = () => {
+      try {
+        const lockUntil = parseInt(localStorage.getItem('civicflow_rate_limit_until') || '0', 10);
+        const remainingSec = Math.ceil((lockUntil - Date.now()) / 1000);
+        if (remainingSec > 0) {
+          setCountdown(remainingSec);
+          setIsBlocked(true);
+          return true;
+        } else {
+          localStorage.removeItem('civicflow_rate_limit_until');
+          return false;
+        }
+      } catch (_e) {
+        return false;
+      }
     };
 
-    window.addEventListener('civicflow-rate-limit', handleRateLimit);
-    return () => window.removeEventListener('civicflow-rate-limit', handleRateLimit);
+    const alreadyBlocked = checkPersistedLock();
+
+    // 2. Rapid Page Reload / Refresh Detection (e.g. 4+ refreshes within 6 seconds on ANY page)
+    if (!alreadyBlocked) {
+      try {
+        const now = Date.now();
+        const storedLoads = JSON.parse(sessionStorage.getItem('civicflow_page_loads') || '[]');
+        // Keep loads within the last 6.5 seconds
+        const recentLoads = [...storedLoads.filter(t => now - t < 6500), now];
+        sessionStorage.setItem('civicflow_page_loads', JSON.stringify(recentLoads));
+
+        if (recentLoads.length >= 4) {
+          const cooldownSec = 25;
+          localStorage.setItem('civicflow_rate_limit_until', (now + cooldownSec * 1000).toString());
+          setCountdown(cooldownSec);
+          setIncidentId(`REFRESH-BURST-${Math.random().toString(36).substring(2, 8).toUpperCase()}`);
+          setIsBlocked(true);
+        }
+      } catch (_e) {}
+    }
+
+    // 3. API 429 Event Interceptor (Any backend rate limit response)
+    const handleApiRateLimit = (e) => {
+      const detail = e.detail || {};
+      const cooldownSec = detail.retryAfter || 30;
+      const now = Date.now();
+      localStorage.setItem('civicflow_rate_limit_until', (now + cooldownSec * 1000).toString());
+      setCountdown(cooldownSec);
+      setIncidentId(`API-429-${Math.random().toString(36).substring(2, 8).toUpperCase()}`);
+      setIsBlocked(true);
+    };
+
+    window.addEventListener('civicflow-rate-limit', handleApiRateLimit);
+    return () => window.removeEventListener('civicflow-rate-limit', handleApiRateLimit);
   }, []);
 
-  useEffect(() => {
-    if (countdown <= 0) return;
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [countdown]);
+  const handleUnlock = () => {
+    localStorage.removeItem('civicflow_rate_limit_until');
+    sessionStorage.removeItem('civicflow_page_loads');
+    setIsBlocked(false);
+  };
 
-  if (!rateLimitInfo || countdown <= 0) return null;
+  if (isBlocked) {
+    return (
+      <RateLimitBlockPage
+        countdown={countdown}
+        initialCooldown={countdown}
+        onUnlock={handleUnlock}
+        incidentId={incidentId}
+      />
+    );
+  }
 
-  return (
-    <div style={{
-      position: 'fixed',
-      top: '1.25rem',
-      right: '1.25rem',
-      maxWidth: '420px',
-      background: '#fff',
-      border: '2px solid #f59e0b',
-      borderRadius: '14px',
-      padding: '1.1rem 1.25rem',
-      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-      zIndex: 99999,
-      animation: 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b45309' }}>
-            <ShieldAlert size={18} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#92400e', lineHeight: 1.2 }}>
-              429 Too Many Requests
-            </div>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              SOC-2 CC6.6 Rate Limit Triggered
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={() => setRateLimitInfo(null)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px' }}
-        >
-          <X size={16} />
-        </button>
-      </div>
-
-      <p style={{ fontSize: '0.82rem', color: '#475569', margin: '0 0 0.75rem 0', lineHeight: 1.45 }}>
-        Server is actively throttling rapid refresh bursts to protect government infrastructure from request flooding and DDoS abuse.
-      </p>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fffbeb', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #fde68a' }}>
-        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#92400e' }}>Cooldown Active</span>
-        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#b45309' }}>
-          Retry in {countdown}s
-        </span>
-      </div>
-    </div>
-  );
+  return children;
 };
 
 // Lazy-loaded pages for better initial load performance
@@ -141,13 +140,13 @@ function HomeRedirect() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a' }}>
-          <RateLimitBanner />
-          <Navbar />
-          <main style={{ padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto' }}>
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
+      <GlobalRateLimiter>
+        <BrowserRouter>
+          <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a' }}>
+            <Navbar />
+            <main style={{ padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto' }}>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
                 <Route path="/" element={<HomeRedirect />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
@@ -240,6 +239,7 @@ export default function App() {
           <Agentation />
         </div>
       </BrowserRouter>
+      </GlobalRateLimiter>
     </AuthProvider>
   );
 }
