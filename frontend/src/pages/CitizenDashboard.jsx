@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { complaintService } from '../services/complaint.service';
+import { getCachedResponse } from '../services/api';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { ComplaintImage } from '../components/common/ComplaintImage';
@@ -8,15 +9,21 @@ import { Pagination } from '../components/common/Pagination';
 import { PlusCircle, FileText, Clock, CheckCircle, MapPin, ChevronRight, AlertTriangle, XCircle, Trash2 } from 'lucide-react';
 
 export const CitizenDashboard = () => {
-  const [complaints, setComplaints] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   
   // Pagination State
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [totalItems, setTotalItems] = useState(0);
 
+  // SWR Persistent Cache Initialization (Instant 0ms UI load)
+  const cacheKey = `/complaints?${statusFilter ? `status=${statusFilter}&` : ''}page=${page}&limit=${pageSize}`;
+  const initialCache = getCachedResponse(cacheKey);
+
+  const [complaints, setComplaints] = useState(() => initialCache?.complaints || []);
+  const [totalItems, setTotalItems] = useState(() => initialCache?.total ?? (initialCache?.complaints?.length || 0));
+  const [loading, setLoading] = useState(() => initialCache === null);
+  const lastHashRef = useRef(JSON.stringify(initialCache));
+  
   const [withdrawId, setWithdrawId] = useState(null);
   const [withdrawReason, setWithdrawReason] = useState('');
   const [withdrawing, setWithdrawing] = useState(false);
@@ -32,15 +39,31 @@ export const CitizenDashboard = () => {
   }, [statusFilter, page, pageSize]);
 
   const fetchComplaints = async () => {
-    setLoading(true);
+    const cached = getCachedResponse(cacheKey);
+    if (cached) {
+      setComplaints(cached.complaints || []);
+      setTotalItems(cached.total ?? (cached.complaints?.length || 0));
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const res = await complaintService.getComplaints({
         ...(statusFilter ? { status: statusFilter } : {}),
         page,
         limit: pageSize
       });
-      setComplaints(res.complaints || []);
-      setTotalItems(res.total ?? (res.complaints?.length || 0));
+      const newComplaints = res.complaints || [];
+      const newTotal = res.total ?? newComplaints.length;
+      const newHash = JSON.stringify({ complaints: newComplaints, total: newTotal });
+
+      // Only update state if data actually changed to avoid layout jump
+      if (newHash !== lastHashRef.current) {
+        lastHashRef.current = newHash;
+        setComplaints(newComplaints);
+        setTotalItems(newTotal);
+      }
     } catch (err) {
       console.error(err);
     } finally {

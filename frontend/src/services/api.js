@@ -1,45 +1,117 @@
+import { useState, useEffect, useRef } from 'react';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
-// High-speed in-memory SWR cache for GET requests
-const cache = new Map();
-const CACHE_TTL = {
-  '/departments': 300000,          // 5 minutes — static reference data
-  '/workers': 30000,               // 30 seconds
-  '/analytics/summary': 15000,     // 15 seconds
-  '/compliance/soc2-status': 15000,// 15 seconds
-  '/complaints': 6000,             // 6 seconds — speeds up tab switches & reloads
+// ── Multi-Tier SWR Cache (Memory + Persistent sessionStorage) ──
+const memoryCache = new Map();
+const STORAGE_PREFIX = 'cf_cache_v2_';
+
+const CACHE_CONFIG = {
+  '/departments': { ttl: 600000 },          // 10 minutes
+  '/workers': { ttl: 60000 },               // 1 minute
+  '/analytics/summary': { ttl: 30000 },     // 30 seconds
+  '/compliance/audit-logs': { ttl: 15000 }, // 15 seconds
+  '/complaints': { ttl: 30000 },            // 30 seconds
 };
 
-const getCacheTTL = (endpoint) => {
-  for (const [key, ttl] of Object.entries(CACHE_TTL)) {
-    if (endpoint.startsWith(key)) return ttl;
+const getEndpointConfig = (endpoint) => {
+  for (const [key, config] of Object.entries(CACHE_CONFIG)) {
+    if (endpoint.startsWith(key)) return config;
   }
-  return 0; // no caching by default
+  return null;
 };
 
+// ── Persistent Storage Helpers ──
+export const getCachedResponse = (endpoint) => {
+  // 1. Memory Tier (Fastest, <0.1ms)
+  if (memoryCache.has(endpoint)) {
+    const entry = memoryCache.get(endpoint);
+    if (entry && Date.now() - entry.timestamp < entry.ttl) {
+      return entry.data;
+    }
+  }
+
+  // 2. Persistent Session Storage Tier (Survives page reloads & tab navigation)
+  try {
+    const raw = sessionStorage.getItem(`${STORAGE_PREFIX}${endpoint}`);
+    if (raw) {
+      const entry = JSON.parse(raw);
+      if (entry && Date.now() - entry.timestamp < entry.ttl) {
+        // Backfill memory tier
+        memoryCache.set(endpoint, entry);
+        return entry.data;
+      } else {
+        sessionStorage.removeItem(`${STORAGE_PREFIX}${endpoint}`);
+      }
+    }
+  } catch (_e) {}
+
+  return null;
+};
+
+export const setCachedResponse = (endpoint, data, customTtl) => {
+  const config = getEndpointConfig(endpoint);
+  const ttl = customTtl || config?.ttl || 30000;
+  const entry = { data, timestamp: Date.now(), ttl };
+
+  memoryCache.set(endpoint, entry);
+  try {
+    sessionStorage.setItem(`${STORAGE_PREFIX}${endpoint}`, JSON.stringify(entry));
+  } catch (_e) {}
+};
+
+export const clearCache = (prefix) => {
+  if (prefix) {
+    for (const key of memoryCache.keys()) {
+      if (key.startsWith(prefix)) memoryCache.delete(key);
+    }
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith(`${STORAGE_PREFIX}${prefix}`)) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach(k => sessionStorage.removeItem(k));
+    } catch (_e) {}
+  } else {
+    memoryCache.clear();
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith(STORAGE_PREFIX)) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach(k => sessionStorage.removeItem(k));
+    } catch (_e) {}
+  }
+};
+
+// ── Core API Request Client with SWR ──
 export const apiRequest = async (endpoint, options = {}) => {
   const token = localStorage.getItem('civicflow_token');
   const method = options.method?.toUpperCase() || 'GET';
   
-  // Check cache for GET requests
-  if (method === 'GET') {
-    const ttl = getCacheTTL(endpoint);
-    if (ttl > 0) {
-      const cached = cache.get(endpoint);
-      if (cached && Date.now() - cached.timestamp < ttl) {
-        return cached.data;
-      }
+  // Cache check for GET requests
+  if (method === 'GET' && !options.skipCache) {
+    const cached = getCachedResponse(endpoint);
+    if (cached !== null) {
+      return cached;
     }
   }
 
-  // Targeted cache invalidation on mutations
-  // /departments is stable (rarely changes), /workers clears on any mutation
+  // Auto-invalidate related cache on mutations
   if (method !== 'GET') {
-    const STABLE_KEYS = ['/departments'];
-    for (const key of cache.keys()) {
-      if (!STABLE_KEYS.some(s => key.startsWith(s))) {
-        cache.delete(key);
-      }
+    if (endpoint.startsWith('/complaints')) {
+      clearCache('/complaints');
+      clearCache('/analytics');
+    } else if (endpoint.startsWith('/workers')) {
+      clearCache('/workers');
+    } else {
+      clearCache();
     }
   }
 
@@ -81,22 +153,84 @@ export const apiRequest = async (endpoint, options = {}) => {
     throw new Error(data.message || 'API Request Failed');
   }
 
-  // Store in cache for GET requests
+  // Store in multi-tier cache for GET
   if (method === 'GET') {
-    const ttl = getCacheTTL(endpoint);
-    if (ttl > 0) {
-      cache.set(endpoint, { data: data.data, timestamp: Date.now() });
+    const config = getEndpointConfig(endpoint);
+    if (config) {
+      setCachedResponse(endpoint, data.data, config.ttl);
     }
   }
 
   return data.data;
 };
 
-// Prefetch helper — call on app init for critical data
+// ── Smart Prefetch Helper (Pre-warms cache on hover or background) ──
+export const prefetchEndpoint = async (endpoint) => {
+  try {
+    // If already cached and fresh, do nothing
+    if (getCachedResponse(endpoint) !== null) return;
+    await apiRequest(endpoint);
+  } catch (_e) { /* silent background prefetch */ }
+};
+
 export const prefetchData = async () => {
   try {
-    await apiRequest('/departments');
-  } catch (e) { /* silent */ }
+    await Promise.allSettled([
+      prefetchEndpoint('/departments'),
+      prefetchEndpoint('/complaints?page=1&limit=10')
+    ]);
+  } catch (_e) {}
+};
+
+// ── Custom React Hook: useSWRData for True Zero-Latency UI Rendering ──
+export const useSWRData = (endpoint, fetchFn, dependencies = []) => {
+  const [data, setData] = useState(() => getCachedResponse(endpoint));
+  const [loading, setLoading] = useState(() => getCachedResponse(endpoint) === null);
+  const [error, setError] = useState(null);
+  const lastHashRef = useRef(JSON.stringify(getCachedResponse(endpoint)));
+
+  useEffect(() => {
+    let isMounted = true;
+    const cached = getCachedResponse(endpoint);
+
+    if (cached !== null) {
+      setData(cached);
+      setLoading(false);
+      lastHashRef.current = JSON.stringify(cached);
+    } else {
+      setLoading(true);
+    }
+
+    const revalidate = async () => {
+      try {
+        const freshData = await (fetchFn ? fetchFn() : apiRequest(endpoint, { skipCache: true }));
+        if (!isMounted) return;
+
+        const newHash = JSON.stringify(freshData);
+        // Only trigger state update if data actually changed to prevent jitter/flicker
+        if (newHash !== lastHashRef.current) {
+          lastHashRef.current = newHash;
+          setData(freshData);
+          setCachedResponse(endpoint, freshData);
+        }
+        setError(null);
+      } catch (err) {
+        if (isMounted && cached === null) {
+          setError(err);
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    revalidate();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [endpoint, ...dependencies]);
+
+  return { data, loading, error, mutate: (newData) => { setData(newData); setCachedResponse(endpoint, newData); } };
 };
 
 // ── SOC 2 & Compliance Services ──

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { prefetchEndpoint } from '../../services/api';
 import { NotificationBell } from './NotificationBell';
 import {
   Shield,
@@ -98,10 +99,19 @@ export const Navbar = () => {
           <div className="desktop-nav-links" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             {user.role === 'citizen' && (
               <>
-                <Link to="/submit" className="btn btn-primary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', textDecoration: 'none' }}>
+                <Link
+                  to="/submit"
+                  onMouseEnter={() => prefetchEndpoint('/departments')}
+                  className="btn btn-primary"
+                  style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', textDecoration: 'none' }}
+                >
                   <PlusCircle size={15} /> Submit Issue
                 </Link>
-                <Link to="/citizen" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}>
+                <Link
+                  to="/citizen"
+                  onMouseEnter={() => prefetchEndpoint('/complaints?page=1&limit=10')}
+                  style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}
+                >
                   <FileText size={16} /> My Complaints
                 </Link>
               </>
@@ -109,27 +119,50 @@ export const Navbar = () => {
 
             {user.role === 'officer' && (
               <>
-                <Link to="/officer" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}>
+                <Link
+                  to="/officer"
+                  onMouseEnter={() => prefetchEndpoint('/complaints?page=1&limit=10')}
+                  style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}
+                >
                   <LayoutDashboard size={16} /> Officer Queue
                 </Link>
-                <Link to="/workers" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}>
+                <Link
+                  to="/workers"
+                  onMouseEnter={() => prefetchEndpoint('/workers')}
+                  style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}
+                >
                   <Wrench size={16} /> Workers
                 </Link>
               </>
             )}
 
             {user.role === 'worker' && (
-              <Link to="/worker" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}>
+              <Link
+                to="/worker"
+                onMouseEnter={() => prefetchEndpoint('/worker/tasks')}
+                style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}
+              >
                 <Wrench size={16} /> My Tasks
               </Link>
             )}
 
             {user.role === 'admin' && (
               <>
-                <Link to="/admin" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}>
+                <Link
+                  to="/admin"
+                  onMouseEnter={() => {
+                    prefetchEndpoint('/analytics/summary');
+                    prefetchEndpoint('/complaints?page=1&limit=10');
+                  }}
+                  style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}
+                >
                   <LayoutDashboard size={16} /> Admin Dashboard
                 </Link>
-                <Link to="/workers" style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}>
+                <Link
+                  to="/workers"
+                  onMouseEnter={() => prefetchEndpoint('/workers')}
+                  style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', padding: '0.45rem 0.6rem' }}
+                >
                   <Wrench size={16} /> Workers
                 </Link>
               </>

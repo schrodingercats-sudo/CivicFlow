@@ -10,20 +10,28 @@ import { Link } from 'react-router-dom';
 
 export const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'soc2'
-  const [stats, setStats] = useState(null);
-  const [complaints, setComplaints] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [loading, setLoading] = useState(true);
-
+  
   // Pagination State
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [totalItems, setTotalItems] = useState(0);
 
-  // SOC 2 & Audit state
-  const [soc2Data, setSoc2Data] = useState(null);
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [soc2Loading, setSoc2Loading] = useState(false);
+  // SWR Persistent Cache (Instant 0ms UI Rendering)
+  const complaintsKey = `/complaints?page=${page}&limit=${pageSize}`;
+  const cachedStats = getCachedResponse('/analytics/summary');
+  const cachedComplaints = getCachedResponse(complaintsKey);
+  const cachedDepts = getCachedResponse('/departments');
+  const cachedLogs = getCachedResponse('/compliance/audit-logs');
+
+  const [stats, setStats] = useState(() => cachedStats);
+  const [complaints, setComplaints] = useState(() => cachedComplaints?.complaints || []);
+  const [totalItems, setTotalItems] = useState(() => cachedComplaints?.total ?? (cachedComplaints?.complaints?.length || 0));
+  const [departments, setDepartments] = useState(() => Array.isArray(cachedDepts) ? cachedDepts : cachedDepts?.departments || []);
+  const [loading, setLoading] = useState(() => !cachedStats && !cachedComplaints);
+  const lastHashRef = useRef(JSON.stringify({ stats: cachedStats, complaints: cachedComplaints }));
+
+  // Audit state
+  const [auditLogs, setAuditLogs] = useState(() => cachedLogs?.logs || []);
+  const [soc2Loading, setSoc2Loading] = useState(() => !cachedLogs);
   const [logSearch, setLogSearch] = useState('');
   const [logFilter, setLogFilter] = useState('all');
 
@@ -45,17 +53,31 @@ export const AdminDashboard = () => {
   }, [activeTab]);
 
   const loadAdminData = async () => {
-    setLoading(true);
+    const freshCachedComplaints = getCachedResponse(complaintsKey);
+    if (freshCachedComplaints) {
+      setComplaints(freshCachedComplaints.complaints || []);
+      setTotalItems(freshCachedComplaints.total ?? (freshCachedComplaints.complaints?.length || 0));
+    }
+    
     try {
       const [statsRes, complaintsRes, deptsRes] = await Promise.all([
         complaintService.getAdminStats(),
         complaintService.getComplaints({ page, limit: pageSize }),
         complaintService.getDepartments()
       ]);
-      setStats(statsRes);
-      setComplaints(complaintsRes.complaints || []);
-      setTotalItems(complaintsRes.total ?? (complaintsRes.complaints?.length || 0));
-      setDepartments(Array.isArray(deptsRes) ? deptsRes : deptsRes?.departments || []);
+
+      const newComplaints = complaintsRes.complaints || [];
+      const newTotal = complaintsRes.total ?? newComplaints.length;
+      const newDepts = Array.isArray(deptsRes) ? deptsRes : deptsRes?.departments || [];
+      const newHash = JSON.stringify({ stats: statsRes, complaints: newComplaints, total: newTotal, depts: newDepts });
+
+      if (newHash !== lastHashRef.current) {
+        lastHashRef.current = newHash;
+        setStats(statsRes);
+        setComplaints(newComplaints);
+        setTotalItems(newTotal);
+        setDepartments(newDepts);
+      }
     } catch (err) {
       console.error('Failed to load admin metrics:', err);
     } finally {
