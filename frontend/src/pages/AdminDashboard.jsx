@@ -182,12 +182,12 @@ export const AdminDashboard = () => {
           <h1 style={{ fontSize: 'clamp(1.2rem, 5vw, 1.8rem)', fontWeight: 800, letterSpacing: '-0.02em', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', lineHeight: 1.2 }}>
             <Shield size={24} color="#0f172a" style={{ flexShrink: 0 }} /> Executive Admin Dashboard
           </h1>
-          <p style={{ color: '#64748b', fontSize: '0.875rem' }}>City-wide infrastructure triage, SLA analytics & SOC 2 compliance management</p>
+          <p style={{ color: '#64748b', fontSize: '0.875rem' }}>City-wide infrastructure triage, SLA analytics & security audit logs</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {activeTab === 'soc2' ? (
             <button onClick={loadSoc2Data} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <RefreshCw size={15} /> Refresh Audit Trail
+              <RefreshCw size={15} /> Refresh Logs
             </button>
           ) : (
             <button onClick={loadAdminData} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -235,7 +235,7 @@ export const AdminDashboard = () => {
             transition: 'all 0.15s'
           }}
         >
-          <ShieldCheck size={16} color={activeTab === 'soc2' ? '#38bdf8' : '#2563eb'} /> SOC 2 Compliance & Audit Logs
+          <Activity size={16} color={activeTab === 'soc2' ? '#38bdf8' : '#2563eb'} /> System Audit Logs
         </button>
       </div>
 
@@ -451,124 +451,30 @@ export const AdminDashboard = () => {
         </>
       )}
 
-      {/* TAB 2: SOC 2 COMPLIANCE & SECURITY AUDIT LOGS */}
+      {/* TAB 2: SYSTEM SECURITY & AUDIT LOGS */}
       {activeTab === 'soc2' && (
         <div>
-          {/* Top Compliance Scorecard */}
-          <div className="clay-card" style={{ padding: '1.5rem', marginBottom: '1.75rem', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: '#ffffff' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8' }}>
-                  <ShieldCheck size={28} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#ffffff' }}>
-                    SOC 2 Type II Compliance Framework
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                    Trust Services Criteria (Security, Confidentiality & Availability) — Enterprise Grade
-                  </div>
-                </div>
+          {/* Header Action Bar */}
+          <div className="clay-card" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Activity size={22} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <span style={{ padding: '0.35rem 0.85rem', background: '#166534', color: '#dcfce7', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 800, border: '1px solid #22c55e' }}>
-                  ● 100% COMPLIANT
-                </span>
-                <span style={{ padding: '0.35rem 0.85rem', background: 'rgba(255,255,255,0.1)', color: '#38bdf8', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 800 }}>
-                  Grade A+ Verified
-                </span>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '1.1rem', color: '#0f172a' }}>System Audit Logs</div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Live chronological log trail of all user actions, security triggers & API traffic</div>
               </div>
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-              <div>
-                <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Uptime Availability SLA</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#38bdf8' }}>99.98%</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>In-Transit Encryption</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#4ade80' }}>TLS 1.3 / HSTS</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Data at Rest</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#4ade80' }}>AES-256</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Total Audited Events</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f59e0b' }}>{auditLogs.length} Events</div>
-              </div>
-            </div>
-          </div>
-
-          {/* 5 SOC 2 Controls Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-            {[
-              {
-                id: 'CC6.1',
-                title: 'Logical Access & RBAC Controls',
-                desc: 'Strict Role-Based Access Control enforced across Citizen, Officer, Field Worker, and Admin. Token-based HMAC-SHA256 signature verification.',
-                status: 'PASSED',
-                color: '#16a34a'
-              },
-              {
-                id: 'CC6.6',
-                title: 'Boundary Protection & Rate Limiting',
-                desc: 'Sliding-window IP rate limiting active (60 req/min). Burst protection & DDoS flood shielding with standard HTTP 429 response headers.',
-                status: 'ACTIVE',
-                color: '#2563eb'
-              },
-              {
-                id: 'CC6.7',
-                title: 'Data Transmission & At-Rest Encryption',
-                desc: 'Cryptographic protection via TLS 1.3 in-transit and AES-256 block cipher at rest in Supabase PostgreSQL.',
-                status: 'PASSED',
-                color: '#16a34a'
-              },
-              {
-                id: 'CC7.2',
-                title: 'Continuous Security Audit Logging',
-                desc: 'Immutable, structured JSON audit trail with correlation IDs, latency tracking, caller IP hashes, and persistent storage.',
-                status: 'ACTIVE',
-                color: '#7c3aed'
-              },
-              {
-                id: 'CC7.3',
-                title: 'Anomaly Detection & Incident Shield',
-                desc: 'Real-time 4xx/5xx anomaly monitoring, tamper-evident security telemetry, and automatic flood suppression.',
-                status: 'OPTIMAL',
-                color: '#0891b2'
-              }
-            ].map(c => (
-              <div key={c.id} className="clay-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f172a', background: '#f1f5f9', padding: '0.2rem 0.5rem', borderRadius: '6px' }}>
-                      {c.id}
-                    </span>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: c.color, background: `${c.color}15`, padding: '0.2rem 0.6rem', borderRadius: '999px', border: `1px solid ${c.color}30` }}>
-                      ● {c.status}
-                    </span>
-                  </div>
-                  <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#0f172a', marginBottom: '0.35rem' }}>{c.title}</div>
-                  <p style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.4, margin: 0 }}>{c.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Action Toolbar for Audit Exports */}
-          <div className="clay-card" style={{ padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>SOC 2 Compliance Audit Log Archive</div>
-              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Export immutable compliance logs for third-party auditing & regulatory filing.</div>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', background: '#f1f5f9', padding: '0.35rem 0.75rem', borderRadius: '999px' }}>
+                {auditLogs.length} Total Events
+              </span>
               <button
                 onClick={downloadAuditLog}
                 className="btn btn-primary"
-                style={{ padding: '0.5rem 0.9rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
               >
-                <Download size={14} /> Download Audit Log (.log)
+                <Download size={15} /> Download Log File (.log)
               </button>
             </div>
           </div>
