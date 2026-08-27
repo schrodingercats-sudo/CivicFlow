@@ -164,7 +164,7 @@ export const SubmitComplaintPage = () => {
         geo_image_url: geoImageUrl || null
       });
       const created = result?.complaint || result;
-      navigate(`/complaint/${created.id}`);
+      navigate('/citizen');
     } catch (err) {
       setError(err.message || 'Failed to submit complaint');
     } finally {

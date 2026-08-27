@@ -73,7 +73,6 @@ export const CitizenDashboard = () => {
       <div className="responsive-header">
         <div>
           <h1 style={{ fontSize: '1.8rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#0f172a' }}>Citizen Dashboard</h1>
-          <p style={{ color: '#64748b', fontSize: '0.875rem' }}>Track your submitted civic complaints & real-time updates</p>
         </div>
         <Link to="/submit" className="btn btn-primary" style={{ textDecoration: 'none' }}>
           <PlusCircle size={18} /> New Complaint
