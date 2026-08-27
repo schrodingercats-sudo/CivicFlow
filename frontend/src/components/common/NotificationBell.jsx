@@ -112,7 +112,24 @@ export const NotificationBell = () => {
       </button>
 
       {open && (
-        <div className="clay-card notification-dropdown">
+        <div
+          className="clay-card notification-dropdown"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            right: 0,
+            width: '360px',
+            maxWidth: '90vw',
+            maxHeight: '480px',
+            overflowY: 'auto',
+            padding: '1.25rem',
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '14px',
+            boxShadow: '0 16px 36px -4px rgba(15, 23, 42, 0.2), 0 4px 12px rgba(0, 0, 0, 0.08)',
+            zIndex: 1000
+          }}
+        >
           {/* Header with close button */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
