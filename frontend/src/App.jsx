@@ -1,70 +1,9 @@
-import React, { Suspense, lazy, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { Navbar } from './components/common/Navbar';
-import { RateLimitBlockPage } from './components/common/RateLimitBlockPage';
 import { Agentation } from 'agentation';
-
-// ── Global Enterprise Rate Limiter & Flood Shield (SOC-2 CC6.6) ──
-const GlobalRateLimiter = ({ children }) => {
-  const [isBlocked, setIsBlocked] = useState(false);
-
-  useEffect(() => {
-    // 1. Check existing persisted rate limit in localStorage
-    const checkPersistedLock = () => {
-      try {
-        const lockUntil = parseInt(localStorage.getItem('civicflow_rate_limit_until') || '0', 10);
-        if (lockUntil && lockUntil > Date.now()) {
-          setIsBlocked(true);
-          return true;
-        } else if (lockUntil) {
-          localStorage.removeItem('civicflow_rate_limit_until');
-          return false;
-        }
-        return false;
-      } catch (_e) {
-        return false;
-      }
-    };
-
-    const alreadyBlocked = checkPersistedLock();
-
-    // 2. Rapid Page Reload / Refresh Detection (e.g. 4+ refreshes within 6 seconds on ANY page)
-    if (!alreadyBlocked) {
-      try {
-        const now = Date.now();
-        const storedLoads = JSON.parse(sessionStorage.getItem('civicflow_page_loads') || '[]');
-        // Keep loads within the last 6.5 seconds
-        const recentLoads = [...storedLoads.filter(t => now - t < 6500), now];
-        sessionStorage.setItem('civicflow_page_loads', JSON.stringify(recentLoads));
-
-        if (recentLoads.length >= 4) {
-          const cooldownMs = 15 * 60 * 1000; // 15 minutes
-          localStorage.setItem('civicflow_rate_limit_until', (now + cooldownMs).toString());
-          setIsBlocked(true);
-        }
-      } catch (_e) {}
-    }
-
-    // 3. API 429 Event Interceptor (Any backend rate limit response)
-    const handleApiRateLimit = () => {
-      const now = Date.now();
-      const cooldownMs = 15 * 60 * 1000; // 15 minutes
-      localStorage.setItem('civicflow_rate_limit_until', (now + cooldownMs).toString());
-      setIsBlocked(true);
-    };
-
-    window.addEventListener('civicflow-rate-limit', handleApiRateLimit);
-    return () => window.removeEventListener('civicflow-rate-limit', handleApiRateLimit);
-  }, []);
-
-  if (isBlocked) {
-    return <RateLimitBlockPage />;
-  }
-
-  return children;
-};
 
 // Lazy-loaded pages for better initial load performance
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
@@ -117,15 +56,22 @@ function HomeRedirect() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Clear any past rate-limit lock keys
+    try {
+      localStorage.removeItem('civicflow_rate_limit_until');
+      sessionStorage.removeItem('civicflow_page_loads');
+    } catch (_e) {}
+  }, []);
+
   return (
     <AuthProvider>
-      <GlobalRateLimiter>
-        <BrowserRouter>
-          <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a' }}>
-            <Navbar />
-            <main style={{ padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto' }}>
-              <Suspense fallback={<PageLoader />}>
-                <Routes>
+      <BrowserRouter>
+        <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a' }}>
+          <Navbar />
+          <main style={{ padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto' }}>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
                 <Route path="/" element={<HomeRedirect />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
@@ -218,7 +164,6 @@ export default function App() {
           <Agentation />
         </div>
       </BrowserRouter>
-      </GlobalRateLimiter>
     </AuthProvider>
   );
 }
