@@ -4,6 +4,7 @@ import { complianceService, apiRequest } from '../services/api';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { ComplaintMap } from '../components/common/ComplaintMap';
+import { Pagination } from '../components/common/Pagination';
 import { Shield, Building2, BarChart2, Edit, RefreshCw, Eye, Trash2, MapPin, ShieldCheck, Lock, Activity, Download, Search, AlertCircle, Zap, FileText, CheckCircle2, Clock, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -13,6 +14,11 @@ export const AdminDashboard = () => {
   const [complaints, setComplaints] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
 
   // SOC 2 & Audit state
   const [soc2Data, setSoc2Data] = useState(null);
@@ -30,7 +36,7 @@ export const AdminDashboard = () => {
 
   useEffect(() => {
     loadAdminData();
-  }, []);
+  }, [page, pageSize]);
 
   useEffect(() => {
     if (activeTab === 'soc2') {
@@ -43,11 +49,12 @@ export const AdminDashboard = () => {
     try {
       const [statsRes, complaintsRes, deptsRes] = await Promise.all([
         complaintService.getAdminStats(),
-        complaintService.getComplaints({ limit: 50 }),
+        complaintService.getComplaints({ page, limit: pageSize }),
         complaintService.getDepartments()
       ]);
       setStats(statsRes);
       setComplaints(complaintsRes.complaints || []);
+      setTotalItems(complaintsRes.total ?? (complaintsRes.complaints?.length || 0));
       setDepartments(Array.isArray(deptsRes) ? deptsRes : deptsRes?.departments || []);
     } catch (err) {
       console.error('Failed to load admin metrics:', err);
@@ -428,6 +435,18 @@ export const AdminDashboard = () => {
                 </div>
               ))}
             </div>
+
+            {/* Pagination Controls */}
+            <Pagination
+              currentPage={page}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+            />
           </div>
         </>
       )}

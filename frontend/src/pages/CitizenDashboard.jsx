@@ -4,6 +4,7 @@ import { complaintService } from '../services/complaint.service';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { ComplaintImage } from '../components/common/ComplaintImage';
+import { Pagination } from '../components/common/Pagination';
 import { PlusCircle, FileText, Clock, CheckCircle, MapPin, ChevronRight, AlertTriangle, XCircle, Trash2 } from 'lucide-react';
 
 export const CitizenDashboard = () => {
@@ -11,6 +12,11 @@ export const CitizenDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+
   const [withdrawId, setWithdrawId] = useState(null);
   const [withdrawReason, setWithdrawReason] = useState('');
   const [withdrawing, setWithdrawing] = useState(false);
@@ -18,14 +24,23 @@ export const CitizenDashboard = () => {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    fetchComplaints();
+    setPage(1);
   }, [statusFilter]);
+
+  useEffect(() => {
+    fetchComplaints();
+  }, [statusFilter, page, pageSize]);
 
   const fetchComplaints = async () => {
     setLoading(true);
     try {
-      const res = await complaintService.getComplaints(statusFilter ? { status: statusFilter } : {});
+      const res = await complaintService.getComplaints({
+        ...(statusFilter ? { status: statusFilter } : {}),
+        page,
+        limit: pageSize
+      });
       setComplaints(res.complaints || []);
+      setTotalItems(res.total ?? (res.complaints?.length || 0));
     } catch (err) {
       console.error(err);
     } finally {
@@ -222,6 +237,18 @@ export const CitizenDashboard = () => {
           ))}
         </div>
       )}
+
+      {/* Pagination Controls */}
+      <Pagination
+        currentPage={page}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize);
+          setPage(1);
+        }}
+      />
 
       {/* Withdraw Modal */}
       {withdrawId && (

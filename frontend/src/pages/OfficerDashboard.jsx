@@ -5,6 +5,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { ComplaintImage } from '../components/common/ComplaintImage';
 import { ComplaintMap } from '../components/common/ComplaintMap';
+import { Pagination } from '../components/common/Pagination';
 import { Briefcase, CheckCircle2, MapPin, Eye, Edit3, Image as ImageIcon, Sparkles, Upload, Wrench, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -40,6 +41,11 @@ export const OfficerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [newStatus, setNewStatus] = useState('in_progress');
   const [remarks, setRemarks] = useState('');
@@ -53,8 +59,12 @@ export const OfficerDashboard = () => {
   const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
-    fetchDepartmentComplaints();
+    setPage(1);
   }, [statusFilter]);
+
+  useEffect(() => {
+    fetchDepartmentComplaints();
+  }, [statusFilter, page, pageSize]);
 
   useEffect(() => {
     const loadWorkers = async () => {
@@ -69,8 +79,13 @@ export const OfficerDashboard = () => {
   const fetchDepartmentComplaints = async () => {
     setLoading(true);
     try {
-      const res = await complaintService.getComplaints(statusFilter ? { status: statusFilter } : {});
+      const res = await complaintService.getComplaints({
+        ...(statusFilter ? { status: statusFilter } : {}),
+        page,
+        limit: pageSize
+      });
       setComplaints(res.complaints || []);
+      setTotalItems(res.total ?? (res.complaints?.length || 0));
     } catch (err) {
       console.error(err);
     } finally {
@@ -269,6 +284,18 @@ export const OfficerDashboard = () => {
           ))}
         </div>
       )}
+
+      {/* Pagination Controls */}
+      <Pagination
+        currentPage={page}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize);
+          setPage(1);
+        }}
+      />
 
       {selectedComplaint && (
         <div style={{

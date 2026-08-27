@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-// Local generated images that match categories (used ONLY when user didn't upload a photo)
+// Local optimized images that match categories (used ONLY when user didn't upload a photo)
 const CATEGORY_MAP = {
   water_supply: '/images/complaints/water_supply.jpg',
   drainage: '/images/complaints/drainage.jpg',
@@ -50,13 +50,17 @@ const getMatchedImage = (src, title = '', category = 'others') => {
 
 export const ComplaintImage = ({ src, alt, title = '', category = 'others', style, className }) => {
   const [imgSrc, setImgSrc] = useState(() => getMatchedImage(src, title || alt, category));
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    setImgSrc(getMatchedImage(src, title || alt, category));
+    const nextSrc = getMatchedImage(src, title || alt, category);
+    if (nextSrc !== imgSrc) {
+      setImgSrc(nextSrc);
+      setIsLoaded(false);
+    }
   }, [src, title, alt, category]);
 
   const handleError = () => {
-    // On load error, fall back to title match or category default
     const lowerTitle = (title || alt || '').toLowerCase();
     let fallback = CATEGORY_MAP[category] || CATEGORY_MAP.others;
     for (const entry of TITLE_KEYWORDS) {
@@ -73,18 +77,49 @@ export const ComplaintImage = ({ src, alt, title = '', category = 'others', styl
   };
 
   return (
-    <img
-      src={imgSrc}
-      alt={alt || title || 'Complaint Photo'}
-      onError={handleError}
-      style={{
-        objectFit: 'cover',
-        borderRadius: '10px',
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-        ...style
-      }}
-      className={className}
-    />
+    <div style={{
+      position: 'relative',
+      overflow: 'hidden',
+      borderRadius: '10px',
+      background: '#f1f5f9',
+      display: 'inline-block',
+      width: style?.width || '100%',
+      height: style?.height || '100%',
+      ...style
+    }}>
+      {/* Skeleton Shimmer Loading Placeholder */}
+      {!isLoaded && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 1.5s infinite',
+          zIndex: 1
+        }} />
+      )}
+      <img
+        src={imgSrc}
+        alt={alt || title || 'Complaint Photo'}
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setIsLoaded(true)}
+        onError={handleError}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+          opacity: isLoaded ? 1 : 0,
+          transition: 'opacity 0.25s ease-in-out',
+          display: 'block'
+        }}
+        className={className}
+      />
+    </div>
   );
 };
