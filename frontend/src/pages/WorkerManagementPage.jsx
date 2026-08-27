@@ -1,16 +1,37 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useSearch } from '../context/SearchContext';
 import { apiRequest } from '../services/api';
-import { Wrench, Plus, Edit3, Trash2, UserCheck, UserX, Search, Building2, Phone, Mail, RefreshCw, X, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { AppLayout } from '../components/layout/AppLayout';
+import {
+  Wrench,
+  Plus,
+  Edit3,
+  Trash2,
+  UserCheck,
+  UserX,
+  Search,
+  Building2,
+  Phone,
+  Mail,
+  RefreshCw,
+  X,
+  Check,
+  AlertTriangle,
+  Users
+} from 'lucide-react';
 
 const DEPARTMENTS_CACHE = { data: null };
 
 export const WorkerManagementPage = () => {
   const { user } = useAuth();
+  const { searchQuery, refreshKey } = useSearch();
+
   const [workers, setWorkers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [deptFilter, setDeptFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -32,7 +53,7 @@ export const WorkerManagementPage = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [refreshKey]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -60,7 +81,6 @@ export const WorkerManagementPage = () => {
     else { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); }
   };
 
-  // ── Add Worker ──────────────────────────────────────────────────────────────
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!addForm.name || !addForm.email || !addForm.department_id) {
@@ -85,7 +105,6 @@ export const WorkerManagementPage = () => {
     }
   };
 
-  // ── Edit Worker ─────────────────────────────────────────────────────────────
   const openEdit = (w) => {
     setEditWorker(w);
     setEditForm({ name: w.name, phone: w.phone || '', department_id: w.department_id || '' });
@@ -116,7 +135,6 @@ export const WorkerManagementPage = () => {
     }
   };
 
-  // ── Toggle Status ───────────────────────────────────────────────────────────
   const handleToggleStatus = async (w) => {
     try {
       await apiRequest(`/workers/${w.id}/status`, {
@@ -130,7 +148,6 @@ export const WorkerManagementPage = () => {
     }
   };
 
-  // ── Delete Worker ───────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -146,7 +163,6 @@ export const WorkerManagementPage = () => {
     }
   };
 
-  // ── Stats ───────────────────────────────────────────────────────────────────
   const stats = useMemo(() => ({
     total: workers.length,
     active: workers.filter(w => w.active !== false).length,
@@ -157,187 +173,272 @@ export const WorkerManagementPage = () => {
     })).filter(d => d.count > 0)
   }), [workers, departments]);
 
-  // ── Filtered list ───────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    if (!search.trim()) return workers;
-    const q = search.toLowerCase();
-    return workers.filter(w =>
-      w.name?.toLowerCase().includes(q) ||
-      w.email?.toLowerCase().includes(q) ||
-      w.cf_departments?.name?.toLowerCase().includes(q)
-    );
-  }, [workers, search]);
-
-  const inputStyle = { width: '100%', padding: '0.6rem 0.85rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.875rem', background: '#fff', outline: 'none', boxSizing: 'border-box' };
-  const labelStyle = { fontSize: '0.78rem', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.35rem' };
+    return workers.filter(w => {
+      if (searchQuery && searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesName = w.name?.toLowerCase().includes(q);
+        const matchesEmail = w.email?.toLowerCase().includes(q);
+        const matchesDept = w.cf_departments?.name?.toLowerCase().includes(q);
+        if (!matchesName && !matchesEmail && !matchesDept) return false;
+      }
+      if (deptFilter !== 'all' && w.department_id !== deptFilter) return false;
+      if (statusFilter === 'active' && w.active === false) return false;
+      if (statusFilter === 'inactive' && w.active !== false) return false;
+      return true;
+    });
+  }, [workers, searchQuery, deptFilter, statusFilter]);
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Wrench size={22} color="#fff" />
-          </div>
-          <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>Worker Management</h1>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>Manage field workers — add, assign departments, activate/deactivate</p>
-          </div>
-        </div>
-        <button className="btn btn-primary" onClick={() => { setShowAddModal(true); setAddError(''); }} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Plus size={16} /> Add Field Worker
-        </button>
-      </div>
-
-      {/* Flash messages */}
+    <AppLayout
+      headerTitle="Worker Management"
+      headerSubtitle="Manage on-ground field workforce, department allocations & dispatch readiness"
+      onNewIssueClick={() => { setShowAddModal(true); setAddError(''); }}
+    >
+      {/* Messages */}
       {error && (
-        <div style={{ background: '#fee2e2', border: '1px solid #fecaca', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ background: '#fee2e2', border: '1px solid #fecaca', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '1.25rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <AlertTriangle size={16} /> {error}
         </div>
       )}
       {success && (
-        <div style={{ background: '#dcfce7', border: '1px solid #bbf7d0', color: '#166534', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <CheckCircle2 size={16} /> {success}
+        <div style={{ background: '#dcfce7', border: '1px solid #bbf7d0', color: '#166534', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '1.25rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Check size={16} strokeWidth={2.8} /> {success}
         </div>
       )}
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-        {[
-          { label: 'Total Workers', value: stats.total, color: '#2563eb' },
-          { label: 'Active', value: stats.active, color: '#16a34a' },
-          { label: 'Inactive', value: stats.inactive, color: '#dc2626' },
-        ].map(s => (
-          <div key={s.label} className="clay-card" style={{ padding: '1.1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
-            <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>{s.label}</div>
+      {/* 4 KPI Cards */}
+      <div className="kpi-grid">
+        <div className="kpi-card" style={{ borderLeft: '4px solid #2563eb' }}>
+          <div className="kpi-header">
+            <span className="kpi-title">Total Workers</span>
+            <div className="kpi-icon-box" style={{ background: '#eff6ff', color: '#2563eb' }}>
+              <Users size={18} />
+            </div>
           </div>
-        ))}
-        {stats.byDept.slice(0, 3).map(d => (
-          <div key={d.id} className="clay-card" style={{ padding: '1.1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#7c3aed', lineHeight: 1 }}>{d.count}</div>
-            <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>{d.code || d.name}</div>
+          <div className="kpi-value">{stats.total}</div>
+          <div className="kpi-footer">Total on staff</div>
+        </div>
+
+        <div className="kpi-card" style={{ borderLeft: '4px solid #16a34a' }}>
+          <div className="kpi-header">
+            <span className="kpi-title">Active / Ready</span>
+            <div className="kpi-icon-box" style={{ background: '#dcfce7', color: '#16a34a' }}>
+              <UserCheck size={18} />
+            </div>
           </div>
-        ))}
+          <div className="kpi-value" style={{ color: '#16a34a' }}>{stats.active}</div>
+          <div className="kpi-footer">Ready for field dispatch</div>
+        </div>
+
+        <div className="kpi-card" style={{ borderLeft: '4px solid #dc2626' }}>
+          <div className="kpi-header">
+            <span className="kpi-title">Inactive / Off Duty</span>
+            <div className="kpi-icon-box" style={{ background: '#fee2e2', color: '#dc2626' }}>
+              <UserX size={18} />
+            </div>
+          </div>
+          <div className="kpi-value" style={{ color: '#dc2626' }}>{stats.inactive}</div>
+          <div className="kpi-footer">Deactivated accounts</div>
+        </div>
+
+        <div className="kpi-card" style={{ borderLeft: '4px solid #7c3aed' }}>
+          <div className="kpi-header">
+            <span className="kpi-title">Departments</span>
+            <div className="kpi-icon-box" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
+              <Building2 size={18} />
+            </div>
+          </div>
+          <div className="kpi-value" style={{ color: '#7c3aed' }}>{departments.length}</div>
+          <div className="kpi-footer">Municipal sectors</div>
+        </div>
       </div>
 
-      {/* Search */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', alignItems: 'center' }}>
-        <div style={{ flex: 1, position: 'relative' }}>
-          <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-          <input
-            type="text"
-            placeholder="Search by name, email or department..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ ...inputStyle, paddingLeft: '2.25rem' }}
-          />
-        </div>
-        <button className="btn btn-secondary" onClick={fetchData} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
-          <RefreshCw size={15} /> Refresh
-        </button>
-      </div>
+      {/* Table Controls & Filter Bar */}
+      <div className="table-card">
+        <div className="table-header-controls">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Field Staff Directory</h2>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '999px', background: '#f1f5f9', color: '#475569' }}>
+              {filtered.length} total
+            </span>
 
-      {/* Worker Table */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '4rem', color: '#94a3b8', fontSize: '0.9rem' }}>Loading workers...</div>
-      ) : filtered.length === 0 ? (
-        <div className="clay-card" style={{ padding: '3rem', textAlign: 'center' }}>
-          <Wrench size={40} color="#cbd5e1" style={{ marginBottom: '1rem' }} />
-          <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.35rem' }}>
-            {search ? 'No workers match your search' : 'No field workers added yet'}
+            {/* Quick Status Tabs */}
+            <div style={{ display: 'flex', gap: '0.35rem', marginLeft: '0.5rem' }}>
+              {[
+                { label: 'All', value: 'all' },
+                { label: 'Active', value: 'active' },
+                { label: 'Inactive', value: 'inactive' }
+              ].map(tab => (
+                <button
+                  key={tab.value}
+                  onClick={() => setStatusFilter(tab.value)}
+                  style={{
+                    padding: '0.3rem 0.65rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    border: '1px solid',
+                    cursor: 'pointer',
+                    background: statusFilter === tab.value ? '#0f172a' : '#ffffff',
+                    color: statusFilter === tab.value ? '#ffffff' : '#475569',
+                    borderColor: statusFilter === tab.value ? '#0f172a' : '#e2e8f0',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            {!search && 'Click "Add Field Worker" to onboard your first field staff member.'}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+            <select
+              value={deptFilter}
+              onChange={(e) => setDeptFilter(e.target.value)}
+              style={{
+                padding: '0.4rem 0.65rem',
+                fontSize: '0.78rem',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                background: '#ffffff',
+                fontWeight: 600,
+                color: '#334155'
+              }}
+            >
+              <option value="all">All Departments</option>
+              {departments.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+
+            <button
+              onClick={() => { setShowAddModal(true); setAddError(''); }}
+              className="btn btn-primary"
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }}
+            >
+              <Plus size={14} /> Add Worker
+            </button>
           </div>
         </div>
-      ) : (
-        <div className="clay-card" style={{ overflow: 'hidden', padding: 0 }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
-                  {['Worker', 'Department', 'Contact', 'Status', 'Joined', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: '0.85rem 1.1rem', textAlign: 'left', fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
+
+        {/* Workers Table */}
+        <div className="table-scroll-wrapper" style={{ maxHeight: '480px' }}>
+          <table className="civic-table">
+            <thead>
+              <tr>
+                <th style={{ width: '25%' }}>Worker</th>
+                <th style={{ width: '25%' }}>Department</th>
+                <th style={{ width: '22%' }}>Contact</th>
+                <th style={{ width: '13%' }}>Status</th>
+                <th style={{ width: '15%', textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+                    <RefreshCw size={20} className="spin" style={{ margin: '0 auto 0.5rem' }} />
+                    <div>Loading workers directory...</div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filtered.map((w, i) => {
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '3.5rem', color: '#64748b' }}>
+                    <Wrench size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
+                    <div style={{ fontWeight: 700, color: '#0f172a' }}>No workers found</div>
+                    <div style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>Try adjusting your search or click "Add Worker" to onboard staff.</div>
+                  </td>
+                </tr>
+              ) : (
+                filtered.map(w => {
                   const isActive = w.active !== false;
                   return (
-                    <tr key={w.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                      onMouseLeave={e => e.currentTarget.style.background = ''}
-                    >
-                      <td style={{ padding: '1rem 1.1rem' }}>
+                    <tr key={w.id}>
+                      <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: isActive ? '#0f172a' : '#94a3b8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 800, flexShrink: 0 }}>
+                          <div style={{
+                            width: '34px',
+                            height: '34px',
+                            borderRadius: '50%',
+                            background: isActive ? '#0f172a' : '#94a3b8',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.85rem',
+                            fontWeight: 800,
+                            flexShrink: 0
+                          }}>
                             {w.name?.charAt(0)?.toUpperCase() || 'W'}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a' }}>{w.name}</div>
+                            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a' }}>{w.name}</div>
                             <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>ID: {w.id.slice(0, 8)}...</div>
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding: '1rem 1.1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
-                          <Building2 size={14} />
-                          {w.cf_departments?.name || <span style={{ color: '#94a3b8', fontWeight: 400 }}>Unassigned</span>}
+
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem', color: '#334155', fontWeight: 600 }}>
+                          <Building2 size={14} color="#2563eb" />
+                          {w.cf_departments?.name || <span style={{ color: '#94a3b8' }}>Unassigned</span>}
                         </div>
-                        {w.cf_departments?.code && <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '0.1rem' }}>{w.cf_departments.code}</div>}
                       </td>
-                      <td style={{ padding: '1rem 1.1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#475569', marginBottom: '0.2rem' }}>
+
+                      <td>
+                        <div style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                           <Mail size={12} /> {w.email}
                         </div>
                         {w.phone && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#475569' }}>
+                          <div style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                             <Phone size={12} /> {w.phone}
                           </div>
                         )}
                       </td>
-                      <td style={{ padding: '1rem 1.1rem' }}>
+
+                      <td>
                         <span style={{
-                          display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                          padding: '0.3rem 0.7rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '999px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
                           background: isActive ? '#dcfce7' : '#f1f5f9',
-                          color: isActive ? '#166534' : '#64748b',
+                          color: isActive ? '#15803d' : '#64748b',
                           border: `1px solid ${isActive ? '#bbf7d0' : '#e2e8f0'}`
                         }}>
-                          {isActive ? <UserCheck size={11} /> : <UserX size={11} />}
+                          {isActive ? <Check size={12} strokeWidth={2.8} /> : <X size={12} strokeWidth={2.8} />}
                           {isActive ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      <td style={{ padding: '1rem 1.1rem', fontSize: '0.8rem', color: '#64748b', whiteSpace: 'nowrap' }}>
-                        {w.created_at ? new Date(w.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                      </td>
-                      <td style={{ padding: '1rem 1.1rem' }}>
-                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'nowrap' }}>
+
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
                           <button
-                            className="btn btn-secondary"
                             onClick={() => openEdit(w)}
-                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                            title="Edit worker"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                            title="Edit"
                           >
-                            <Edit3 size={13} /> Edit
+                            <Edit3 size={13} />
                           </button>
                           <button
-                            className="btn btn-secondary"
                             onClick={() => handleToggleStatus(w)}
-                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.3rem', color: isActive ? '#b45309' : '#16a34a' }}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: isActive ? '#d97706' : '#16a34a' }}
                             title={isActive ? 'Deactivate' : 'Activate'}
                           >
                             {isActive ? <UserX size={13} /> : <UserCheck size={13} />}
-                            {isActive ? 'Deactivate' : 'Activate'}
                           </button>
                           {user.role === 'admin' && (
                             <button
-                              className="btn btn-secondary"
                               onClick={() => setDeleteTarget(w)}
-                              style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#dc2626' }}
-                              title="Delete worker"
+                              className="btn btn-secondary"
+                              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: '#dc2626' }}
+                              title="Delete"
                             >
                               <Trash2 size={13} />
                             </button>
@@ -346,37 +447,40 @@ export const WorkerManagementPage = () => {
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                })
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
 
-      {/* ── Add Worker Modal ── */}
+      {/* Add Worker Modal */}
       {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-          <div className="clay-card" style={{ width: '100%', maxWidth: '460px', padding: '2rem', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
-            <button onClick={() => setShowAddModal(false)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.25rem' }}>Add Field Worker</h2>
-            <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.5rem' }}>New worker account will be created with login access.</p>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+          <div className="civic-card" style={{ width: '100%', maxWidth: '440px', padding: '2rem', background: '#ffffff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Add Field Worker</h2>
+              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem' }}>Create account for on-ground staff member.</p>
             {addError && <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.65rem 0.9rem', borderRadius: '8px', fontSize: '0.82rem', marginBottom: '1rem', fontWeight: 600 }}>{addError}</div>}
+            
             <form onSubmit={handleAdd}>
               <div className="form-group">
-                <label style={labelStyle}>Full Name *</label>
-                <input style={inputStyle} type="text" placeholder="e.g. Ramesh Kumar" value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} required />
+                <label className="form-label">Full Name *</label>
+                <input className="form-input" type="text" placeholder="e.g. Ramesh Kumar" value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} required />
               </div>
               <div className="form-group">
-                <label style={labelStyle}>Email Address *</label>
-                <input style={inputStyle} type="email" placeholder="worker@civicflow.org" value={addForm.email} onChange={e => setAddForm({ ...addForm, email: e.target.value })} required />
+                <label className="form-label">Email Address *</label>
+                <input className="form-input" type="email" placeholder="worker@civicflow.org" value={addForm.email} onChange={e => setAddForm({ ...addForm, email: e.target.value })} required />
               </div>
               <div className="form-group">
-                <label style={labelStyle}>Phone Number</label>
-                <input style={inputStyle} type="tel" placeholder="+91 XXXXX XXXXX" value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} />
+                <label className="form-label">Phone Number</label>
+                <input className="form-input" type="tel" placeholder="+91 XXXXX XXXXX" value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} />
               </div>
               <div className="form-group">
-                <label style={labelStyle}>Department *</label>
-                <select style={inputStyle} value={addForm.department_id} onChange={e => setAddForm({ ...addForm, department_id: e.target.value })} required>
+                <label className="form-label">Department *</label>
+                <select className="form-select" value={addForm.department_id} onChange={e => setAddForm({ ...addForm, department_id: e.target.value })} required>
                   <option value="">— Select Department —</option>
                   {departments.map(d => <option key={d.id} value={d.id}>{d.name} ({d.code})</option>)}
                 </select>
@@ -392,27 +496,30 @@ export const WorkerManagementPage = () => {
         </div>
       )}
 
-      {/* ── Edit Worker Modal ── */}
+      {/* Edit Worker Modal */}
       {editWorker && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-          <div className="clay-card" style={{ width: '100%', maxWidth: '420px', padding: '2rem', position: 'relative' }}>
-            <button onClick={() => setEditWorker(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.25rem' }}>Edit Worker</h2>
-            <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.5rem' }}>{editWorker.email}</p>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+          <div className="civic-card" style={{ width: '100%', maxWidth: '420px', padding: '2rem', background: '#ffffff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Edit Worker</h2>
+              <button onClick={() => setEditWorker(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem' }}>{editWorker.email}</p>
             {editError && <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.65rem 0.9rem', borderRadius: '8px', fontSize: '0.82rem', marginBottom: '1rem', fontWeight: 600 }}>{editError}</div>}
+            
             <form onSubmit={handleEdit}>
               <div className="form-group">
-                <label style={labelStyle}>Full Name *</label>
-                <input style={inputStyle} type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} required />
+                <label className="form-label">Full Name *</label>
+                <input className="form-input" type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} required />
               </div>
               <div className="form-group">
-                <label style={labelStyle}>Phone</label>
-                <input style={inputStyle} type="tel" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
+                <label className="form-label">Phone</label>
+                <input className="form-input" type="tel" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
               </div>
               {user.role === 'admin' && (
                 <div className="form-group">
-                  <label style={labelStyle}>Department</label>
-                  <select style={inputStyle} value={editForm.department_id} onChange={e => setEditForm({ ...editForm, department_id: e.target.value })}>
+                  <label className="form-label">Department</label>
+                  <select className="form-select" value={editForm.department_id} onChange={e => setEditForm({ ...editForm, department_id: e.target.value })}>
                     <option value="">— No change —</option>
                     {departments.map(d => <option key={d.id} value={d.id}>{d.name} ({d.code})</option>)}
                   </select>
@@ -429,21 +536,21 @@ export const WorkerManagementPage = () => {
         </div>
       )}
 
-      {/* ── Delete Confirm ── */}
+      {/* Delete Modal */}
       {deleteTarget && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-          <div className="clay-card" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+          <div className="civic-card" style={{ width: '100%', maxWidth: '400px', padding: '2rem', background: '#ffffff' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Trash2 size={20} color="#dc2626" />
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Trash2 size={20} />
               </div>
               <div>
                 <div style={{ fontWeight: 800, color: '#0f172a' }}>Remove Worker</div>
                 <div style={{ fontSize: '0.82rem', color: '#64748b' }}>{deleteTarget.name}</div>
               </div>
             </div>
-            <p style={{ fontSize: '0.875rem', color: '#475569', marginBottom: '1.5rem' }}>
-              This will permanently remove <strong>{deleteTarget.name}</strong> and unassign them from all active complaints. This action cannot be undone.
+            <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '1.5rem' }}>
+              This will permanently remove <strong>{deleteTarget.name}</strong> from field dispatch queues.
             </p>
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</button>
@@ -454,6 +561,6 @@ export const WorkerManagementPage = () => {
           </div>
         </div>
       )}
-    </div>
+    </AppLayout>
   );
 };

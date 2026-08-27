@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Wrench, MapPin, CheckCircle2, Clock, Camera, Navigation, AlertTriangle, Eye, Upload, X } from 'lucide-react';
+import { Wrench, MapPin, Check, Clock, Camera, Navigation, AlertTriangle, Eye, Upload, X, Search, UserCheck } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useSearch } from '../context/SearchContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { ComplaintImage } from '../components/common/ComplaintImage';
 import { ComplaintMap } from '../components/common/ComplaintMap';
+import { AppLayout } from '../components/layout/AppLayout';
 import { apiRequest } from '../services/api';
 
 const compressImage = (file, callback) => {
@@ -29,6 +31,7 @@ const compressImage = (file, callback) => {
 
 export const WorkerDashboard = () => {
   const { user } = useAuth();
+  const { searchQuery, refreshKey } = useSearch();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
@@ -43,7 +46,7 @@ export const WorkerDashboard = () => {
 
   useEffect(() => {
     fetchTasks();
-  }, []);
+  }, [refreshKey]);
 
   const fetchTasks = async () => {
     try {
@@ -57,12 +60,21 @@ export const WorkerDashboard = () => {
     }
   };
 
-  const filteredTasks = tasks.filter(task => {
-    if (filter === 'New') return ['submitted', 'under_review', 'assigned'].includes(task.status);
-    if (filter === 'Active') return ['in_progress'].includes(task.status);
-    if (filter === 'Completed') return ['resolved', 'closed'].includes(task.status);
-    return true;
-  });
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      if (searchQuery && searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesTitle = task.title?.toLowerCase().includes(q);
+        const matchesDesc = task.description?.toLowerCase().includes(q);
+        const matchesAddress = task.address?.toLowerCase().includes(q);
+        if (!matchesTitle && !matchesDesc && !matchesAddress) return false;
+      }
+      if (filter === 'New') return ['submitted', 'under_review', 'assigned'].includes(task.status);
+      if (filter === 'Active') return ['in_progress'].includes(task.status);
+      if (filter === 'Completed') return ['resolved', 'closed'].includes(task.status);
+      return true;
+    });
+  }, [tasks, searchQuery, filter]);
 
   const handleUpdateSubmit = async (e) => {
     e.preventDefault();
@@ -80,11 +92,10 @@ export const WorkerDashboard = () => {
           longitude: location.longitude
         })
       });
-      // Refresh tasks and close modal
       await fetchTasks();
       closeModal();
     } catch (error) {
-      console.error('Error updating task', error);
+      alert(error.message || 'Error updating task');
     } finally {
       setUpdating(false);
     }
@@ -121,63 +132,82 @@ export const WorkerDashboard = () => {
     setLocation({ latitude: null, longitude: null });
   };
 
-  const getMetrics = () => {
-    return {
-      assigned: tasks.filter(t => t.status === 'assigned').length,
-      accepted: tasks.filter(t => ['submitted', 'under_review'].includes(t.status)).length,
-      inProgress: tasks.filter(t => t.status === 'in_progress').length,
-      completed: tasks.filter(t => ['resolved', 'closed'].includes(t.status)).length
-    };
+  const metrics = {
+    assigned: tasks.filter(t => t.status === 'assigned').length,
+    accepted: tasks.filter(t => ['submitted', 'under_review'].includes(t.status)).length,
+    inProgress: tasks.filter(t => t.status === 'in_progress').length,
+    completed: tasks.filter(t => ['resolved', 'closed'].includes(t.status)).length
   };
 
-  const metrics = getMetrics();
-
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
-      <header style={{ display: 'flex', alignItems: 'center', marginBottom: '2rem', gap: '1rem' }}>
-        <Wrench size={32} color="#2563eb" />
-        <div>
-          <h1 style={{ color: '#0f172a', margin: 0, fontSize: '1.8rem' }}>Field Worker Dashboard</h1>
-          <p style={{ color: '#64748b', margin: '0.2rem 0 0 0' }}>
-            {user?.cf_departments?.name || 'Department'} Worker
-          </p>
+    <AppLayout
+      headerTitle="Field Operations Tasks"
+      headerSubtitle={`${user?.cf_departments?.name || 'Department'} Field Dispatch & Updates`}
+    >
+      {/* 4 KPI Cards */}
+      <div className="kpi-grid">
+        <div className="kpi-card" style={{ borderLeft: '4px solid #2563eb' }}>
+          <div className="kpi-header">
+            <span className="kpi-title">Assigned Tasks</span>
+            <div className="kpi-icon-box" style={{ background: '#eff6ff', color: '#2563eb' }}>
+              <UserCheck size={18} />
+            </div>
+          </div>
+          <div className="kpi-value">{metrics.assigned}</div>
+          <div className="kpi-footer">Pending dispatch</div>
         </div>
-      </header>
 
-      {/* Metric Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        <div className="clay-card" style={{ padding: '1.5rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#2563eb' }}>{metrics.assigned}</div>
-          <div style={{ color: '#64748b' }}>Assigned Tasks</div>
+        <div className="kpi-card" style={{ borderLeft: '4px solid #d97706' }}>
+          <div className="kpi-header">
+            <span className="kpi-title">Accepted / En Route</span>
+            <div className="kpi-icon-box" style={{ background: '#fef3c7', color: '#d97706' }}>
+              <Clock size={18} />
+            </div>
+          </div>
+          <div className="kpi-value" style={{ color: '#d97706' }}>{metrics.accepted}</div>
+          <div className="kpi-footer">En route to location</div>
         </div>
-        <div className="clay-card" style={{ padding: '1.5rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#b45309' }}>{metrics.accepted}</div>
-          <div style={{ color: '#64748b' }}>Accepted / En Route</div>
+
+        <div className="kpi-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+          <div className="kpi-header">
+            <span className="kpi-title">On Site / Active</span>
+            <div className="kpi-icon-box" style={{ background: '#eff6ff', color: '#2563eb' }}>
+              <Wrench size={18} />
+            </div>
+          </div>
+          <div className="kpi-value" style={{ color: '#2563eb' }}>{metrics.inProgress}</div>
+          <div className="kpi-footer">Active repairs</div>
         </div>
-        <div className="clay-card" style={{ padding: '1.5rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#2563eb' }}>{metrics.inProgress}</div>
-          <div style={{ color: '#64748b' }}>On Site / In Progress</div>
-        </div>
-        <div className="clay-card" style={{ padding: '1.5rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#15803d' }}>{metrics.completed}</div>
-          <div style={{ color: '#64748b' }}>Completed</div>
+
+        <div className="kpi-card" style={{ borderLeft: '4px solid #16a34a' }}>
+          <div className="kpi-header">
+            <span className="kpi-title">Completed Work</span>
+            <div className="kpi-icon-box" style={{ background: '#dcfce7', color: '#16a34a' }}>
+              <Check size={18} strokeWidth={2.8} />
+            </div>
+          </div>
+          <div className="kpi-value" style={{ color: '#16a34a' }}>{metrics.completed}</div>
+          <div className="kpi-footer">Resolved tasks</div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
+      {/* Filter Tabs */}
+      <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.25rem' }}>
         {['All', 'New', 'Active', 'Completed'].map(tab => (
           <button
             key={tab}
             onClick={() => setFilter(tab)}
             style={{
-              padding: '0.5rem 1rem',
-              background: filter === tab ? '#2563eb' : 'transparent',
-              color: filter === tab ? 'white' : '#64748b',
-              border: 'none',
-              borderRadius: '0.375rem',
+              padding: '0.4rem 0.95rem',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              borderRadius: '8px',
+              border: '1px solid',
               cursor: 'pointer',
-              fontWeight: filter === tab ? '600' : 'normal'
+              background: filter === tab ? '#0f172a' : '#ffffff',
+              color: filter === tab ? '#ffffff' : '#475569',
+              borderColor: filter === tab ? '#0f172a' : '#e2e8f0',
+              transition: 'all 0.15s ease'
             }}
           >
             {tab}
@@ -187,43 +217,49 @@ export const WorkerDashboard = () => {
 
       {/* Task List */}
       {loading ? (
-        <p>Loading tasks...</p>
+        <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Loading field tasks...</div>
+      ) : filteredTasks.length === 0 ? (
+        <div className="civic-card" style={{ padding: '3.5rem', textAlign: 'center' }}>
+          <Check size={36} color="#16a34a" strokeWidth={2.8} style={{ margin: '0 auto 1rem' }} />
+          <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>All Tasks Clear</h3>
+          <p style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+            No tasks found under the "{filter}" filter.
+          </p>
+        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {filteredTasks.length === 0 && <p style={{ color: '#64748b' }}>No tasks found for this filter.</p>}
-          
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {filteredTasks.map(task => (
-            <div key={task.id} className="clay-card" style={{ display: 'flex', padding: '1.5rem', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={{ width: '150px', height: '100px', flexShrink: 0, borderRadius: '0.5rem', overflow: 'hidden' }}>
-                <ComplaintImage src={task.image_url} alt={task.title} title={task.title} category={task.category} />
+            <div key={task.id} className="civic-card" style={{ display: 'flex', padding: '1.25rem', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ width: '110px', height: '90px', flexShrink: 0, borderRadius: '10px', overflow: 'hidden' }}>
+                <ComplaintImage src={task.image_url} alt={task.title} category={task.category} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
               
-              <div style={{ flex: 1, minWidth: '250px' }}>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <StatusBadge status={task.status} />
-                  <PriorityBadge priority={task.priority} />
+              <div style={{ flex: 1, minWidth: '260px' }}>
+                <div style={{ display: 'flex', gap: '0.45rem', marginBottom: '0.35rem' }}>
+                  <StatusBadge status={task.status} size="sm" />
+                  <PriorityBadge priority={task.priority} size="sm" />
                 </div>
-                <h3 style={{ margin: '0 0 0.5rem 0', color: '#0f172a' }}>{task.title}</h3>
-                <p style={{ margin: '0 0 0.5rem 0', color: '#64748b', fontSize: '0.9rem' }}>{task.description}</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#64748b', fontSize: '0.85rem' }}>
-                  <MapPin size={14} />
+                <h3 style={{ margin: '0 0 0.35rem 0', color: '#0f172a', fontSize: '1.05rem', fontWeight: 800 }}>{task.title}</h3>
+                <p style={{ margin: '0 0 0.45rem 0', color: '#475569', fontSize: '0.85rem', lineHeight: 1.4 }}>{task.description}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#64748b', fontSize: '0.8rem' }}>
+                  <MapPin size={13} color="#2563eb" />
                   <span>{task.address}</span>
-                  <span style={{ margin: '0 0.5rem' }}>•</span>
-                  <Clock size={14} />
+                  <span>•</span>
+                  <Clock size={13} />
                   <span>{new Date(task.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '150px' }}>
-                <Link to={`/complaint/${task.id}`} className="btn btn-secondary" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
-                  <Eye size={16} /> View
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <Link to={`/complaint/${task.id}`} className="btn btn-secondary" style={{ padding: '0.55rem 0.85rem', fontSize: '0.82rem', textDecoration: 'none' }}>
+                  <Eye size={15} /> View Details
                 </Link>
                 <button 
                   className="btn btn-primary"
                   onClick={() => setSelectedTask(task)}
-                  style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
+                  style={{ padding: '0.55rem 0.95rem', fontSize: '0.82rem' }}
                 >
-                  <Navigation size={16} /> Update Progress
+                  <Navigation size={15} /> Update Progress
                 </button>
               </div>
             </div>
@@ -231,27 +267,25 @@ export const WorkerDashboard = () => {
         </div>
       )}
 
-      {/* Update Modal */}
+      {/* Update Progress Modal */}
       {selectedTask && (
         <div style={{ 
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          backgroundColor: 'rgba(15, 23, 42, 0.5)', 
-          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 
+          position: 'fixed', inset: 0, 
+          backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(6px)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1100, padding: '1rem'
         }}>
-          <div className="clay-card" style={{ width: '100%', maxWidth: '500px', padding: '2rem', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
-            <button 
-              onClick={closeModal}
-              style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              <X size={24} color="#64748b" />
-            </button>
-            
-            <h2 style={{ marginTop: 0, color: '#0f172a', marginBottom: '1.5rem' }}>Update Progress</h2>
-            <p style={{ color: '#64748b', marginBottom: '1rem' }}>Task: {selectedTask.title}</p>
+          <div className="civic-card" style={{ width: '100%', maxWidth: '480px', padding: '2rem', maxHeight: '90vh', overflowY: 'auto', background: '#ffffff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Update Task Progress</h2>
+              <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <p style={{ color: '#64748b', fontSize: '0.82rem', marginBottom: '1.25rem' }}>Task: "{selectedTask.title}"</p>
             
             <form onSubmit={handleUpdateSubmit}>
               <div className="form-group">
-                <label className="form-label">Worker Status</label>
+                <label className="form-label">Worker Progress Stage</label>
                 <select 
                   className="form-select"
                   value={updateType}
@@ -262,61 +296,69 @@ export const WorkerDashboard = () => {
                   <option value="en_route">En Route to Site</option>
                   <option value="on_site">Arrived On Site</option>
                   <option value="in_progress">Work In Progress</option>
-                  <option value="completed">Work Completed</option>
+                  <option value="completed">Work Completed & Fixed</option>
                 </select>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Remarks (Required)</label>
+                <label className="form-label">Field Progress Remarks</label>
                 <textarea 
                   className="form-textarea" 
-                  rows="3" 
+                  rows={3} 
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   required
-                  placeholder="Describe your progress..."
-                ></textarea>
+                  placeholder="Describe your current work status, materials needed, or completion details..."
+                />
               </div>
 
               <div className="form-group">
-                <label className="form-label">Proof Photo (Optional)</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <label className="btn btn-secondary" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Camera size={16} /> Capture/Upload
-                    <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleImageUpload} />
-                  </label>
-                  {proofImage && <CheckCircle2 size={20} color="#15803d" />}
-                </div>
+                <label className="form-label">Capture / Upload Proof Photo</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleImageUpload}
+                  className="form-input"
+                  style={{ padding: '0.4rem', fontSize: '0.82rem' }}
+                />
                 {proofImage && (
-                  <img src={proofImage} alt="Proof preview" style={{ marginTop: '1rem', maxHeight: '150px', borderRadius: '0.5rem' }} />
+                  <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <img src={proofImage} alt="Proof" style={{ width: '70px', height: '50px', objectFit: 'cover', borderRadius: '6px' }} />
+                    <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                      <Check size={14} strokeWidth={2.8} /> Photo Attached
+                    </span>
+                  </div>
                 )}
               </div>
 
               <div className="form-group">
-                <label className="form-label">Location</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <button type="button" className="btn btn-secondary" onClick={captureLocation} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <MapPin size={16} /> Auto GPS Capture
-                  </button>
-                  {(location.latitude && location.longitude) && <CheckCircle2 size={20} color="#15803d" />}
-                </div>
-                {(location.latitude && location.longitude) && (
-                  <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.5rem' }}>
-                    Lat: {location.latitude.toFixed(4)}, Lng: {location.longitude.toFixed(4)}
-                  </p>
+                <label className="form-label">GPS Geotag Confirmation</label>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={captureLocation}
+                  style={{ width: '100%', justifyContent: 'center' }}
+                >
+                  <MapPin size={15} color="#2563eb" /> Auto-Capture My GPS
+                </button>
+                {location.latitude && location.longitude && (
+                  <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 700, marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <Check size={13} strokeWidth={2.8} /> Captured: ({location.latitude.toFixed(5)}, {location.longitude.toFixed(5)})
+                  </div>
                 )}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
-                <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={updating}>
-                  {updating ? 'Submitting...' : 'Submit Update'}
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={closeModal} style={{ flex: 1 }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={updating}>
+                  {updating ? 'Saving...' : 'Submit Progress Update'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </div>
+    </AppLayout>
   );
 };
